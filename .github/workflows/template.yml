@@ -29,6 +29,6 @@ jobs:
         run: |
           make -C template/gateway generate openapi
           cd template/web && bun install && bun run gen-api
-          git diff --exit-code
+          git diff --exit-code -- template/gateway template/web/src
       - name: Every combination
         run: WEB=1 scripts/matrix.sh

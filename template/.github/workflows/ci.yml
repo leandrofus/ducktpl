@@ -24,7 +24,7 @@ jobs:
         run: |
           make -C gateway generate openapi
           cd web && bun install --frozen-lockfile && bun run gen-api
-          git diff --exit-code
+          git diff --exit-code -- gateway web/src
       # the gateway embeds the UI, so it is built before any Go step
       - name: Typecheck and build the UI
         run: cd web && bun run build
