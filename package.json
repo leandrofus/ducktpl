@@ -1,0 +1,23 @@
+{
+  "name": "create-duck",
+  "version": "0.1.0",
+  "description": "Scaffold a duck-family app: Go gateway with the web UI embedded, OpenAPI contract generated from code, SQLite or PostgreSQL, and opt-in modules.",
+  "type": "module",
+  "bin": {
+    "create-duck": "bin/create-duck.mjs",
+    "ducktpl": "bin/ducktpl.mjs"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "template"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "check": "node bin/create-duck.mjs --check",
+    "matrix": "scripts/matrix.sh"
+  },
+  "license": "Apache-2.0"
+}

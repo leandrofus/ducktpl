@@ -1,0 +1,22 @@
+[Unit]
+Description=DuckApp
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=duckapp
+Group=duckapp
+WorkingDirectory=/var/lib/duckapp
+ExecStart=/usr/local/bin/duckapp serve
+EnvironmentFile=-/etc/duckapp/env
+Restart=on-failure
+# hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/var/lib/duckapp
+StateDirectory=duckapp
+
+[Install]
+WantedBy=multi-user.target

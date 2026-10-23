@@ -1,0 +1,3 @@
+# /etc/pam.d/duckapp — the stack DuckApp checks system users against.
+auth     include  common-auth
+account  include  common-account

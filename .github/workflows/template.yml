@@ -1,0 +1,34 @@
+name: Template
+
+# The template is only right if every module combination is: check the
+# markers, then scaffold each combination and vet, test and build it.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  matrix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: template/gateway/go.mod
+          cache-dependency-path: template/gateway/go.sum
+      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      - name: Markers
+        run: node bin/create-duck.mjs --check
+      - name: Generated code in the template is current
+        run: |
+          make -C template/gateway generate openapi
+          cd template/web && bun install && bun run gen-api
+          git diff --exit-code
+      - name: Every combination
+        run: WEB=1 scripts/matrix.sh

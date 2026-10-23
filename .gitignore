@@ -1,0 +1,12 @@
+node_modules/
+*.tsbuildinfo
+/template/gateway/bin/
+/template/gateway/internal/server/ui/dist/*
+!/template/gateway/internal/server/ui/dist/.gitkeep
+/template/site/.astro/
+/template/site/dist/
+/template/.dev/
+*.db
+*.db-shm
+*.db-wal
+*.audit-key

@@ -1,0 +1,26 @@
+---
+import Base from '../layouts/Base.astro'
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const repo = 'https://github.com/duckowner/duckapp'
+---
+<Base title="DuckApp" description="DuckApp: one binary, web UI included.">
+  <header class="hero">
+    <div class="wrap">
+      <img src={`${base}/icon.svg`} alt="" />
+      <h1>DuckApp</h1>
+      <p>One binary with the web UI inside. SQLite out of the box, PostgreSQL when you grow.</p>
+      <a class="btn" href={`${repo}/releases/latest`}>Download</a>
+    </div>
+  </header>
+  <main class="wrap">
+    <div class="grid">
+      <div class="card"><h3>One binary</h3><p>The gateway embeds the UI and migrates its own database on start.</p></div>
+      <div class="card"><h3>An API with a contract</h3><p>The OpenAPI spec is generated from the code, and the UI's types from the spec.</p></div>
+      <div class="card"><h3>SQLite or PostgreSQL</h3><p>A file for one node; a postgres:// URL for several gateways sharing a database.</p></div>
+    </div>
+    <h2>Install</h2>
+    <pre><code>curl -fLo duckapp {repo}/releases/latest/download/duckapp-linux-amd64
+chmod +x duckapp && ./duckapp serve --listen 0.0.0.0:8080</code></pre>
+  </main>
+  <footer class="wrap">DuckApp · <a href={repo}>source</a></footer>
+</Base>

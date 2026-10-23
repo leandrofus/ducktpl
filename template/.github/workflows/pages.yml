@@ -1,0 +1,37 @@
+# duck:file site
+name: Pages
+
+# The Astro site in site/, on GitHub Pages. Rebuilt when it changes and after
+# every release (release.yml dispatches it on main).
+on:
+  push:
+    branches: [main]
+    paths: ['site/**', 'web/public/**', '.github/workflows/pages.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pages
+      cancel-in-progress: true
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: oven-sh/setup-bun@v2
+      - name: Build
+        working-directory: site
+        run: bun install && bun run build
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: site/dist
+      - id: deployment
+        uses: actions/deploy-pages@v4

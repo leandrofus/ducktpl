@@ -1,0 +1,7 @@
+[Unit]
+Description=DuckApp PAM helper (one login check)
+
+[Service]
+ExecStart=/usr/local/bin/duckapp pam-helper duckapp
+StandardInput=socket
+StandardOutput=socket
