@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # make dev: the gateway (go run, data in .dev/) and Vite with hot reload,
 # side by side. Open http://localhost:5173. Ctrl-C stops both.
+# HOST=0.0.0.0 make dev serves the UI to the network too (the gateway stays
+# on 127.0.0.1: Vite proxies /api to it).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p .dev
@@ -16,10 +18,10 @@ export DUCKAPP_FILES=${DUCKAPP_FILES:-$PWD/.dev/files}
 
 trap 'kill 0' EXIT
 (cd gateway && go run ./cmd/duckapp) &
-(cd web && bun run dev --clearScreen false) &
+(cd web && bun run dev --clearScreen false ${HOST:+--host "$HOST"}) &
 # duck:if auth
-echo "dev: http://localhost:5173  (admin / $DUCKAPP_ADMIN_PASSWORD)"
+echo "dev: http://${HOST:-localhost}:5173  (admin / $DUCKAPP_ADMIN_PASSWORD)"
 # duck:else
-# echo "dev: http://localhost:5173"
+# echo "dev: http://${HOST:-localhost}:5173"
 # duck:end
 wait
