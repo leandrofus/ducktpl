@@ -134,6 +134,21 @@ func (s *Service) PurgeExpired(ctx context.Context) (int64, error) {
 	return s.Store.Q.DeleteExpiredWebSessions(ctx, db.DeleteExpiredWebSessionsParams{Now: store.TS(now), IdleBefore: store.TS(now.Add(-SessionIdle))})
 }
 
+// ResetPassword sets an existing user's password. It is for development
+// (make dev), where the database outlives the password the first start
+// printed; the gateway only calls it when asked to, see cmd.
+func (s *Service) ResetPassword(ctx context.Context, username, password string) error {
+	u, err := s.Store.Q.GetUserByUsername(ctx, username)
+	if err != nil {
+		return err
+	}
+	hash, err := HashPassword(password)
+	if err != nil {
+		return err
+	}
+	return s.Store.Q.SetUserPassword(ctx, db.SetUserPasswordParams{ID: u.ID, PasswordHash: hash, Now: store.Now()})
+}
+
 // Bootstrap creates the first admin when there are no users. It returns the
 // generated password ("" when password was given or users already exist).
 func (s *Service) Bootstrap(ctx context.Context, username, password string) (string, error) {

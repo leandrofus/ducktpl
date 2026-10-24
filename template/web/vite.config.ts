@@ -5,9 +5,12 @@ import react from '@vitejs/plugin-react'
 // import preact from '@preact/preset-vite'
 // duck:end
 
-// `bun run dev` (make dev) proxies the API to the gateway on :8080, so the
+// `bun run dev` (make dev) proxies the API to the gateway on :8080 (DUCKAPP_PORT: make dev
+// picks a free one), so the
 // session cookie and the CSRF header work as in production. `bun run build`
 // writes into the gateway, which embeds the result.
+const api = `http://127.0.0.1:${(globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.DUCKAPP_PORT ?? 8080}`
+
 export default defineConfig({
   // duck:if react
   plugins: [react()],
@@ -16,7 +19,7 @@ export default defineConfig({
   // duck:end
   server: {
     proxy: {
-      '/api': { target: 'http://127.0.0.1:8080', ws: true },
+      '/api': { target: api, ws: true },
     },
   },
   build: { outDir: '../gateway/internal/server/ui/dist', emptyOutDir: true },

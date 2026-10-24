@@ -151,6 +151,14 @@ func run(c config) error {
 	if err != nil {
 		return fmt.Errorf("creating the first admin: %w", err)
 	}
+	// make dev keeps its database between runs: with this set, the admin's
+	// password follows $DUCKAPP_ADMIN_PASSWORD. Never in production, where it
+	// would undo a password changed under My account.
+	if want := os.Getenv("DUCKAPP_ADMIN_PASSWORD"); want != "" && os.Getenv("DUCKAPP_ADMIN_PASSWORD_RESET") == "1" {
+		if err := srv.Auth.ResetPassword(ctx, c.admin, want); err != nil {
+			return fmt.Errorf("setting the admin's password: %w", err)
+		}
+	}
 	if pw != "" {
 		fmt.Fprintf(os.Stderr, "\n  first admin: %s\n  password:    %s\n  (shown once; change it under My account)\n\n", c.admin, pw)
 	}

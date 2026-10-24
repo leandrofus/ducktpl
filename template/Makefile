@@ -30,7 +30,7 @@ help: ## Show this help
 
 # ---- develop ----
 
-dev: ## Gateway on :8080 and Vite on :5173 (proxying /api); HOST=0.0.0.0 to reach it from the network
+dev: ## Gateway (first free port from :8080, or DUCKAPP_PORT) and Vite on :5173 (proxying /api); HOST=0.0.0.0 to reach it from the network
 	dev/run.sh
 
 dev-gateway: ## Only the gateway (go run), with the data in .dev/

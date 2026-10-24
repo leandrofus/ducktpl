@@ -321,8 +321,9 @@ function main() {
           if (res.alreadyActive) {
             console.log(yellow(`Module "${targetMod}" is already active.`))
           } else {
-            console.log(green(`✓ Activated module "${targetMod}" (${res.label})`))
+            console.log(res.dryRun ? yellow(`Would activate module "${targetMod}" (${res.label})`) : green(`✓ Activated module "${targetMod}" (${res.label})`))
             for (const f of res.filesAdded) console.log(`  ${green('create/update')} ${f}`)
+            if (res.dryRun) console.log(dim('\n--dry-run: nothing written'))
           }
         }
       } catch (e) {
