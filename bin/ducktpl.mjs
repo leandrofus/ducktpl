@@ -100,33 +100,44 @@ function die(msg, code = 'ERR_DUCKTPL', isJson = isJsonGlobal) {
 function runGeneration(p, opts, rollbackFn) {
   if (!opts.generate) return true
 
-  const run = (label, runCmd, args, cwd) => {
+  let failed = null
+  const run = (label, runCmd, args, cwd, { quiet = false } = {}) => {
     const r = spawnSync(runCmd, args, { cwd, encoding: 'utf8' })
     if (r.status === 0) {
-      if (!opts.json) console.log(green('✓ ') + label)
+      if (!opts.json && !quiet) console.log(green('✓ ') + label)
       return true
     }
-    const err = (r.stderr || r.stdout || '').trim().split('\n').slice(-15).join('\n')
-    if (!opts.json) {
+    // tsc and go vet report on stdout, make and bun on stderr: keep both
+    const err = [r.stdout, r.stderr].filter(Boolean).join('\n').trim().split('\n').slice(-15).join('\n')
+    failed ??= { step: label, detail: err }
+    if (!opts.json && !quiet) {
       console.log(yellow('! ') + label + yellow(' failed:') + '\n' + err)
     }
     return false
   }
 
   const gw = join(p.root, 'gateway')
-  const ok =
-    run('sqlc generate', 'make', ['generate'], gw) &&
-    run('gofmt', 'gofmt', ['-w', 'internal'], gw) &&
-    run('OpenAPI spec', 'go', ['run', './cmd/openapi-gen'], gw) &&
-    run('UI types', 'bun', ['run', 'gen-api'], join(p.root, 'web'))
+  const web = join(p.root, 'web')
+  // The UI typecheck needs its dependencies; skip it until bun install ran.
+  const typecheck = () => !existsSync(join(web, 'node_modules')) || run('UI typecheck', 'bun', ['run', 'typecheck'], web)
+  const generate = (o) =>
+    run('sqlc generate', 'make', ['generate'], gw, o) &&
+    run('gofmt', 'gofmt', ['-w', 'internal'], gw, o) &&
+    run('OpenAPI spec', 'go', ['run', './cmd/openapi-gen'], gw, o) &&
+    run('UI types', 'bun', ['run', 'gen-api'], web, o)
+  const ok = generate() && run('go vet', 'go', ['vet', './...'], gw) && typecheck()
 
   if (!ok) {
     if (!opts.noRollback && rollbackFn) {
       rollbackFn()
+      // generated code (sqlc, openapi.yaml, api-types.ts) follows the restored sources again
+      generate({ quiet: true })
       if (opts.json) {
         console.error(JSON.stringify({
           status: 'error',
-          error: 'Post-generation build failed (sqlc, gofmt, openapi-gen, or gen-api). Workspace was automatically rolled back.',
+          error: `Post-generation check failed at "${failed.step}". Workspace was automatically rolled back.`,
+          step: failed.step,
+          detail: failed.detail,
           rolledBack: true,
         }))
       } else {
