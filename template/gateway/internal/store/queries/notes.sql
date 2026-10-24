@@ -2,8 +2,11 @@
 -- turns them into $N, which SQLite accepts) and julianday() for time
 -- comparisons.
 
+-- name: CountNotes :one
+SELECT count(*) FROM notes;
+
 -- name: ListNotes :many
-SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC;
+SELECT * FROM notes ORDER BY pinned DESC, updated_at DESC LIMIT CAST(@lim_count AS BIGINT) OFFSET CAST(@lim_offset AS BIGINT);
 
 -- name: GetNote :one
 SELECT * FROM notes WHERE id = @id;

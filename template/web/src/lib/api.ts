@@ -6,10 +6,19 @@ import type { components } from './api-types'
 // changed DTO breaks the build here, not at runtime.
 
 export type Schemas = components['schemas']
+export interface Page<T> {
+  items: T[]
+  total: number
+  page: number
+  per_page: number
+}
+
 export type Note = Schemas['Note']
+export type PaginatedNotes = Schemas['PaginatedNotes']
 // ducktpl:types
 // duck:if auth
 export type User = Schemas['User']
+export type PaginatedUsers = Schemas['PaginatedUsers']
 export type Me = Schemas['Me']
 // duck:end
 // duck:if rbac
@@ -19,6 +28,7 @@ export type Permission = Schemas['Permission']
 // duck:end
 // duck:if audit
 export type AuditEvent = Schemas['AuditEvent']
+export type PaginatedAuditEvents = Schemas['PaginatedAuditEvents']
 // duck:end
 // duck:if s3
 export type FileInfo = Schemas['File']

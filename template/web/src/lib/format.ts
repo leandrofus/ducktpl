@@ -23,6 +23,18 @@ export function dateTime(input: number | string | undefined | null) {
   return new Date(toMs(input)).toLocaleString(getLang(), { dateStyle: 'medium', timeStyle: 'short' })
 }
 
+/** An ISO time as the value of an <input type="datetime-local">, in local time. */
+export function toLocalInput(iso: string | null | undefined) {
+  if (!iso) return ''
+  const d = new Date(iso)
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
+}
+
+/** The value of an <input type="datetime-local"> as an ISO time; null when empty. */
+export function fromLocalInput(v: string) {
+  return v ? new Date(v).toISOString() : null
+}
+
 export function duration(from: string, to?: string | null) {
   const s = Math.max(0, Math.round(((to ? Date.parse(to) : Date.now()) - Date.parse(from)) / 1000))
   if (s < 60) return `${s} s`

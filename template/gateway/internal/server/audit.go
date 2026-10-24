@@ -4,7 +4,6 @@ package server
 import (
 	"log/slog"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/duckowner/duckapp/gateway/internal/audit"
@@ -42,22 +41,38 @@ type rawJSON string
 
 func (j rawJSON) MarshalJSON() ([]byte, error) { return []byte(j), nil }
 
+// openapi:schema PaginatedAuditEvents
+// type: object
+// required: [items, total, page, per_page]
+// properties:
+//   items: { type: array, items: { $ref: '#/components/schemas/AuditEvent' } }
+//   total: { type: integer }
+//   page: { type: integer }
+//   per_page: { type: integer }
+
+type paginatedAuditEvents struct {
+	Items   []auditEventDTO `json:"items"`
+	Total   int             `json:"total"`
+	Page    int             `json:"page"`
+	PerPage int             `json:"per_page"`
+}
+
 // openapi:operation
 // summary: Audit log
-// description: Newest first. Pass the last seq of a page as before for the next one.
+// description: Newest first.
 // parameters:
-//   - { name: before, in: query, schema: { type: integer, format: int64 } }
-//   - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 500, default: 100 } }
+//   - { name: page, in: query, schema: { type: integer, default: 1 } }
+//   - { name: per_page, in: query, schema: { type: integer, default: 50 } }
 // responses:
-//   '200': { description: Events, schema: '[]AuditEvent' }
+//   '200': { description: Events, schema: PaginatedAuditEvents }
 
 func (s *Server) listAudit(w http.ResponseWriter, r *http.Request, p principal) error {
-	before, _ := strconv.ParseInt(r.URL.Query().Get("before"), 10, 64)
-	limit, _ := strconv.ParseInt(r.URL.Query().Get("limit"), 10, 64)
-	if limit <= 0 || limit > 500 {
-		limit = 100
+	page, perPage, offset := pageParams(r)
+	total, err := s.Store.Q.CountAuditEvents(r.Context())
+	if err != nil {
+		return err
 	}
-	evs, err := s.Store.Q.ListAuditEvents(r.Context(), db.ListAuditEventsParams{Before: before, Lim: limit})
+	evs, err := s.Store.Q.ListAuditEventsPage(r.Context(), db.ListAuditEventsPageParams{LimCount: int64(perPage), LimOffset: int64(offset)})
 	if err != nil {
 		return err
 	}
@@ -68,7 +83,7 @@ func (s *Server) listAudit(w http.ResponseWriter, r *http.Request, p principal) 
 			TargetType: e.TargetType, TargetID: e.TargetID, Details: rawJSON(e.Details), CreatedAt: e.CreatedAt.UTC(),
 		})
 	}
-	return ok(w, out)
+	return ok(w, paginatedAuditEvents{Items: out, Total: int(total), Page: page, PerPage: perPage})
 }
 
 // openapi:schema AuditVerification

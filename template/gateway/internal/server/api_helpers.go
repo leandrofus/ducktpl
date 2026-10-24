@@ -1,13 +1,16 @@
 package server
 
 import (
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/duckowner/duckapp/gateway/internal/store"
 )
@@ -31,6 +34,15 @@ func badRequest(format string, a ...any) error {
 
 func notFound(what string) error {
 	return &apiError{http.StatusNotFound, "not_found", what + " not found"}
+}
+
+// badRef turns a missing referenced object into a 400: the request names
+// it, so the request is wrong.
+func badRef(err error, what string) error {
+	if errors.Is(store.Classify(err), store.ErrNotFound) {
+		return badRequest("%s not found", what)
+	}
+	return err
 }
 
 func conflict(format string, a ...any) error {
@@ -158,4 +170,63 @@ func handleCommand(w http.ResponseWriter, fn func() error) error {
 		return err
 	}
 	return noContent(w)
+}
+
+// Nullable columns (optional time and ref fields) and their JSON pointers.
+
+func timePtr(v sql.NullTime) *time.Time {
+	if !v.Valid {
+		return nil
+	}
+	t := v.Time.UTC()
+	return &t
+}
+
+func strPtr(v sql.NullString) *string {
+	if !v.Valid {
+		return nil
+	}
+	return &v.String
+}
+
+func nullTime(p *time.Time) sql.NullTime {
+	if p == nil {
+		return sql.NullTime{}
+	}
+	return sql.NullTime{Time: *p, Valid: true}
+}
+
+func nullStr(p *string) sql.NullString {
+	if p == nil || *p == "" {
+		return sql.NullString{}
+	}
+	return sql.NullString{String: *p, Valid: true}
+}
+
+// Page represents a paginated collection of items.
+type Page[T any] struct {
+	Items   []T `json:"items"`
+	Total   int `json:"total"`
+	Page    int `json:"page"`
+	PerPage int `json:"per_page"`
+}
+
+func pageParams(r *http.Request) (page, perPage, offset int) {
+	page = 1
+	perPage = 50
+	if p, err := strconv.Atoi(r.URL.Query().Get("page")); err == nil && p > 0 {
+		page = p
+	}
+	if pp, err := strconv.Atoi(r.URL.Query().Get("per_page")); err == nil && pp > 0 {
+		if pp > 100 {
+			pp = 100
+		}
+		perPage = pp
+	}
+	if r.URL.Query().Get("all") == "1" || r.URL.Query().Get("all") == "true" {
+		perPage = 10000
+		page = 1
+	}
+	offset = (page - 1) * perPage
+	return page, perPage, offset
 }

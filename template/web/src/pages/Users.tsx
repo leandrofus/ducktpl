@@ -3,7 +3,7 @@ import { t } from '../i18n'
 import { useMemo, useState } from 'react'
 import { Users as UsersIcon, Plus, Search, X, Pencil, KeyRound, Ban, CheckCircle2, Trash2 } from 'lucide-react'
 import { api, enc } from '../lib/api'
-import type { User } from '../lib/api'
+import type { Page, User } from '../lib/api'
 // duck:if rbac
 import type { Role } from '../lib/api'
 // duck:end
@@ -54,19 +54,21 @@ async function setDisabled(u: User, disabled: boolean) {
 }
 
 export function Users({ id }: { id?: string }) {
-  const { data, error, loading } = useResource<User[]>('/users')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(25)
+  const { data, error, loading } = useResource<Page<User>>(`/users?page=${page}&per_page=${perPage}`)
   const [q, setQ] = useState('')
   const rows = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean)
-    return (data || []).filter((u) => words.every((w) => `${u.username} ${u.display_name} ${u.role}`.toLowerCase().includes(w)))
-  }, [data, q])
+    return (data?.items || []).filter((u) => words.every((w) => `${u.username} ${u.display_name} ${u.role}`.toLowerCase().includes(w)))
+  }, [data?.items, q])
   return (
     <div className="page">
       <div className="page-head">
         <div className="page-title">
           <UsersIcon size={20} />
           <h1>{t('Users')}</h1>
-          <span className="count">{data?.length ?? 0}</span>
+          <span className="count">{data?.total ?? 0}</span>
           {loading && <Spinner />}
         </div>
         <div className="page-actions">
@@ -87,6 +89,13 @@ export function Users({ id }: { id?: string }) {
           rowMenu={userActions}
           rowClass={(u) => (u.disabled ? 'dim' : '')}
           defaultSort={{ key: 'name', dir: 1 }}
+          pagination={{
+            page,
+            perPage,
+            total: data?.total ?? 0,
+            onPageChange: setPage,
+            onPerPageChange: (pp) => { setPerPage(pp); setPage(1) },
+          }}
           columns={[
             {
               key: 'name', label: t('Name'), sort: (u) => u.username, render: (u) => (
@@ -103,7 +112,7 @@ export function Users({ id }: { id?: string }) {
           ]}
         />
       </div>
-      {id && <UserDrawer user={data?.find((u) => u.id === id)} onClose={() => go('users')} />}
+      {id && <UserDrawer user={data?.items.find((u) => u.id === id)} onClose={() => go('users')} />}
     </div>
   )
 }

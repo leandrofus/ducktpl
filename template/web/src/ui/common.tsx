@@ -133,6 +133,14 @@ export interface Column<T> {
   className?: string
 }
 
+export interface PaginationConfig {
+  page: number
+  perPage: number
+  total: number
+  onPageChange: (p: number) => void
+  onPerPageChange?: (pp: number) => void
+}
+
 export function DataTable<T>({
   rows,
   columns,
@@ -149,6 +157,7 @@ export function DataTable<T>({
   empty,
   defaultSort,
   rowClass,
+  pagination,
 }: {
   rows: T[]
   columns: Column<T>[]
@@ -165,11 +174,16 @@ export function DataTable<T>({
   empty?: ReactNode
   defaultSort?: { key: string; dir: 1 | -1 }
   rowClass?: (r: T) => string
+  pagination?: PaginationConfig
 }) {
   const menu = useMenu()
   const [sort, setSort] = useState(defaultSort ?? { key: '', dir: 1 as 1 | -1 })
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
   const lastClicked = useRef<string | null>(null)
+
+  const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.perPage)) : 1
+  const from = pagination ? (pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.perPage + 1) : 1
+  const to = pagination ? Math.min(pagination.total, pagination.page * pagination.perPage) : rows.length
 
   const sorted = useMemo(() => {
     const col = columns.find((c) => c.key === sort.key)
@@ -220,7 +234,7 @@ export function DataTable<T>({
     }
   }
 
-  if (!rows.length) return <>{empty}</>
+  if (!rows.length && (!pagination || pagination.total === 0)) return <>{empty}</>
 
   return (
     <div className="table-wrap">
@@ -325,6 +339,44 @@ export function DataTable<T>({
           ))}
         </tbody>
       </table>
+      {pagination && pagination.total > 0 && (
+        <div className="table-foot">
+          <div className="table-count">
+            {tr('Showing {0}–{1} of {2}', from, to, pagination.total)}
+          </div>
+          <div className="table-pages">
+            <button
+              className="btn btn-sm"
+              disabled={pagination.page <= 1}
+              onClick={() => pagination.onPageChange(pagination.page - 1)}
+            >
+              {tr('Previous')}
+            </button>
+            <span className="page-num">
+              {tr('Page {0} of {1}', pagination.page, totalPages)}
+            </span>
+            <button
+              className="btn btn-sm"
+              disabled={pagination.page >= totalPages}
+              onClick={() => pagination.onPageChange(pagination.page + 1)}
+            >
+              {tr('Next')}
+            </button>
+            {pagination.onPerPageChange && (
+              <select
+                value={pagination.perPage}
+                onChange={(e) => pagination.onPerPageChange!(Number(e.target.value))}
+                className="per-page-select"
+              >
+                <option value={10}>10 / {tr('page')}</option>
+                <option value={25}>25 / {tr('page')}</option>
+                <option value={50}>50 / {tr('page')}</option>
+                <option value={100}>100 / {tr('page')}</option>
+              </select>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -32,7 +32,8 @@ for i in "${!combos[@]}"; do
     cd "$dir/gateway"
     mkdir -p bin && cp "$sqlc" bin/
     # the generator must work on every combination too
-    (cd .. && node "$here/bin/ducktpl.mjs" add tasks title:string! notes:text done:bool priority:int ratio:float --no-generate >/dev/null)
+    (cd .. && node "$here/bin/ducktpl.mjs" addScope projects name:string! --no-generate >/dev/null)
+    (cd .. && node "$here/bin/ducktpl.mjs" addToScope projects tasks title:string! due_at:time notes:text done:bool priority:int ratio:float --no-generate >/dev/null)
     go mod tidy >/dev/null 2>&1
     bin/sqlc generate
     gofmt -w .

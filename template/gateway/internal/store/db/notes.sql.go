@@ -10,6 +10,21 @@ import (
 	"time"
 )
 
+const countNotes = `-- name: CountNotes :one
+
+SELECT count(*) FROM notes
+`
+
+// Queries run unchanged on SQLite and PostgreSQL: @name parameters (sqlc
+// turns them into $N, which SQLite accepts) and julianday() for time
+// comparisons.
+func (q *Queries) CountNotes(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countNotes)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const createNote = `-- name: CreateNote :exec
 INSERT INTO notes (id, title, body, pinned, created_at, updated_at)
 VALUES ($1, $2, $3, $4, $5, $5)
@@ -65,15 +80,16 @@ func (q *Queries) GetNote(ctx context.Context, id string) (Note, error) {
 }
 
 const listNotes = `-- name: ListNotes :many
-
-SELECT id, title, body, pinned, created_at, updated_at FROM notes ORDER BY pinned DESC, updated_at DESC
+SELECT id, title, body, pinned, created_at, updated_at FROM notes ORDER BY pinned DESC, updated_at DESC LIMIT CAST($2 AS BIGINT) OFFSET CAST($1 AS BIGINT)
 `
 
-// Queries run unchanged on SQLite and PostgreSQL: @name parameters (sqlc
-// turns them into $N, which SQLite accepts) and julianday() for time
-// comparisons.
-func (q *Queries) ListNotes(ctx context.Context) ([]Note, error) {
-	rows, err := q.db.QueryContext(ctx, listNotes)
+type ListNotesParams struct {
+	LimOffset int64
+	LimCount  int64
+}
+
+func (q *Queries) ListNotes(ctx context.Context, arg ListNotesParams) ([]Note, error) {
+	rows, err := q.db.QueryContext(ctx, listNotes, arg.LimOffset, arg.LimCount)
 	if err != nil {
 		return nil, err
 	}

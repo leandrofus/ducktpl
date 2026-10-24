@@ -2,7 +2,8 @@
 // ducktpl: generators for a project made with create-duck.
 //
 //   npx ducktpl add tasks title:string! done:bool priority:int
-//   npx ducktpl --addRoute tasks title:string!          (same)
+//   npx ducktpl addScope projects name:string!
+//   npx ducktpl addToScope projects tasks title:string!
 import { spawnSync } from 'node:child_process'
 import { join } from 'node:path'
 import { TYPES, apply, findProject, inspect, parseFields, plan, resourceNames } from '../lib/generate.mjs'
@@ -14,6 +15,8 @@ const bold = c(1), dim = c(2), green = c(32), yellow = c(33), red = c(31)
 const USAGE = `${bold('ducktpl')} — generators for create-duck projects
 
   ducktpl add <resource> <field:type[!]>... [options]
+  ducktpl addScope <resource> <field:type[!]>...
+  ducktpl addToScope <scope> <resource> <field:type[!]>...
   ducktpl --addRoute <resource> <field:type[!]>...
 
 Adds a resource through every layer: migrations (SQLite and PostgreSQL),
@@ -21,14 +24,22 @@ queries, handlers with their OpenAPI blocks, routes, permissions (auth,
 rbac), an HTTP test, a web page and its nav entry; then regenerates sqlc
 code, the spec and the UI types.
 
-  <resource>    plural, lowercase: tasks, work_items
-  field:type    types: ${Object.keys(TYPES).join(', ')}; a trailing ! makes it required
-  --singular x  when the singular is not the plural minus "s" (people → --singular person)
-  --dry-run     list what would change, write nothing
-  --no-generate skip make generate
+  <resource>      plural, lowercase: tasks, work_items
+  <scope>         existing scope resource: projects
+  field:type      types: ${Object.keys(TYPES).join(', ')}; ref: <name>:ref:<resource>; a trailing ! makes it required
+  --singular x    when the singular is not the plural minus "s" (people → --singular person)
+  --dry-run       list what would change, write nothing
+  --no-generate   skip make generate
 
-Example:
+Commands:
+  add             regular CRUD resource
+  addScope        container resource that other resources can live in
+  addToScope      resource that belongs to a scope (nested list, scope picker)
+
+Examples:
   ducktpl add tasks title:string! notes:text done:bool priority:int
+  ducktpl addScope projects name:string!
+  ducktpl addToScope projects tasks title:string!
 `
 
 function die(msg) {
@@ -47,25 +58,41 @@ function main() {
     else if (a === '--no-generate') opts.generate = false
     else if (a === '--singular') opts.singular = argv[++i] ?? die('--singular needs a value')
     else if (a === '--addRoute' || a === '--add-route') rest.push('add')
+    else if (a === '--addScope' || a === '--add-scope') rest.push('addScope')
+    else if (a === '--addToScope' || a === '--add-to-scope') rest.push('addToScope')
     else if (a.startsWith('-')) die(`unknown option ${a}\n\n${USAGE}`)
     else rest.push(a)
   }
-  const [cmd, resource, ...specs] = rest
-  if (cmd !== 'add') die(`unknown command ${cmd ?? ''}\n\n${USAGE}`)
-  if (!resource) die('which resource? e.g. ducktpl add tasks title:string!')
+  const cmd = rest[0]
+  let resource, scope, specs
+  if (cmd === 'add' || cmd === 'addScope') {
+    resource = rest[1]
+    specs = rest.slice(2)
+    if (!resource) die(`which resource? e.g. ducktpl ${cmd} ${cmd === 'addScope' ? 'projects' : 'tasks'} title:string!`)
+  } else if (cmd === 'addToScope') {
+    scope = rest[1]
+    resource = rest[2]
+    specs = rest.slice(3)
+    if (!scope || !resource) die('which scope and resource? e.g. ducktpl addToScope projects tasks title:string!')
+  } else {
+    die(`unknown command ${cmd ?? ''}\n\n${USAGE}`)
+  }
 
-  let p, n, fields, files
+  let p, n, fields, planned
   try {
     p = inspect(findProject(process.cwd()))
     n = resourceNames(resource, opts.singular)
     fields = parseFields(specs)
-    files = plan(p, n, fields)
+    planned = plan(p, n, fields, { cmd, scope })
   } catch (e) {
     die(e.message)
   }
+  const { files, notes = [] } = planned
   const mods = ['auth', 'rbac', 'live'].filter((m) => p[m])
-  console.log(`${bold('Adding')} ${n.label} ${dim(`(${n.url}, model ${n.Singular}; project modules: ${mods.join(', ') || 'none'})`)}`)
+  const kind = cmd === 'addScope' ? 'scope ' : cmd === 'addToScope' ? `resource in ${scope}: ` : ''
+  console.log(`${bold('Adding')} ${kind}${n.label} ${dim(`(${n.url}, model ${n.Singular}; project modules: ${mods.join(', ') || 'none'})`)}`)
   for (const f of files) console.log(`  ${f.created ? green('create') : yellow('update')} ${f.path}`)
+  for (const note of notes) console.log(`  ${yellow('! ' + note)}`)
   if (opts.dry) return console.log(dim('\n--dry-run: nothing written'))
   apply(p.root, files)
 

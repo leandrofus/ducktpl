@@ -55,6 +55,17 @@ func (q *Queries) AuditEventsAfter(ctx context.Context, arg AuditEventsAfterPara
 	return items, nil
 }
 
+const countAuditEvents = `-- name: CountAuditEvents :one
+SELECT count(*) FROM audit_events
+`
+
+func (q *Queries) CountAuditEvents(ctx context.Context) (int64, error) {
+	row := q.db.QueryRowContext(ctx, countAuditEvents)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
+}
+
 const insertAuditEvent = `-- name: InsertAuditEvent :exec
 INSERT INTO audit_events (seq, actor_id, actor_username, actor_ip, action, target_type, target_id, details, prev_hash, hash, created_at)
 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
@@ -130,6 +141,50 @@ type ListAuditEventsParams struct {
 // Newest first, keyset-paginated by seq (before = 0 for the first page).
 func (q *Queries) ListAuditEvents(ctx context.Context, arg ListAuditEventsParams) ([]AuditEvent, error) {
 	rows, err := q.db.QueryContext(ctx, listAuditEvents, arg.Before, arg.Lim)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []AuditEvent{}
+	for rows.Next() {
+		var i AuditEvent
+		if err := rows.Scan(
+			&i.Seq,
+			&i.ActorID,
+			&i.ActorUsername,
+			&i.ActorIP,
+			&i.Action,
+			&i.TargetType,
+			&i.TargetID,
+			&i.Details,
+			&i.PrevHash,
+			&i.Hash,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listAuditEventsPage = `-- name: ListAuditEventsPage :many
+SELECT seq, actor_id, actor_username, actor_ip, action, target_type, target_id, details, prev_hash, hash, created_at FROM audit_events ORDER BY seq DESC LIMIT CAST($2 AS BIGINT) OFFSET CAST($1 AS BIGINT)
+`
+
+type ListAuditEventsPageParams struct {
+	LimOffset int64
+	LimCount  int64
+}
+
+func (q *Queries) ListAuditEventsPage(ctx context.Context, arg ListAuditEventsPageParams) ([]AuditEvent, error) {
+	rows, err := q.db.QueryContext(ctx, listAuditEventsPage, arg.LimOffset, arg.LimCount)
 	if err != nil {
 		return nil, err
 	}

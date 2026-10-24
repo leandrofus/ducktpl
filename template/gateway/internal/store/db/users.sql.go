@@ -222,11 +222,16 @@ func (q *Queries) GetWebSession(ctx context.Context, idHash string) (WebSession,
 }
 
 const listUsers = `-- name: ListUsers :many
-SELECT id, username, display_name, password_hash, source, role, disabled, created_at, updated_at, last_login_at FROM users ORDER BY username
+SELECT id, username, display_name, password_hash, source, role, disabled, created_at, updated_at, last_login_at FROM users ORDER BY username LIMIT CAST($2 AS BIGINT) OFFSET CAST($1 AS BIGINT)
 `
 
-func (q *Queries) ListUsers(ctx context.Context) ([]User, error) {
-	rows, err := q.db.QueryContext(ctx, listUsers)
+type ListUsersParams struct {
+	LimOffset int64
+	LimCount  int64
+}
+
+func (q *Queries) ListUsers(ctx context.Context, arg ListUsersParams) ([]User, error) {
+	rows, err := q.db.QueryContext(ctx, listUsers, arg.LimOffset, arg.LimCount)
 	if err != nil {
 		return nil, err
 	}

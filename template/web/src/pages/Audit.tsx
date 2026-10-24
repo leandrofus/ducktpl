@@ -3,7 +3,7 @@ import { t } from '../i18n'
 import { useState } from 'react'
 import { ScrollText, ShieldCheck, ShieldAlert } from 'lucide-react'
 import { api } from '../lib/api'
-import type { AuditEvent } from '../lib/api'
+import type { AuditEvent, Page } from '../lib/api'
 import { useResource } from '../lib/store'
 import { ago, dateTime } from '../lib/format'
 import { DataTable, Spinner, Tag } from '../ui/common'
@@ -12,8 +12,9 @@ import { toast } from '../ui/overlays'
 type Verification = { events: number; valid: boolean; error?: string }
 
 export function Audit() {
-  const [before, setBefore] = useState(0)
-  const { data, error, loading } = useResource<AuditEvent[]>(`/audit?limit=100${before ? `&before=${before}` : ''}`)
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(50)
+  const { data, error, loading } = useResource<Page<AuditEvent>>(`/audit?page=${page}&per_page=${perPage}`)
   const [check, setCheck] = useState<Verification | null>(null)
   const [busy, setBusy] = useState(false)
   const verify = () => {
@@ -26,6 +27,7 @@ export function Audit() {
         <div className="page-title">
           <ScrollText size={20} />
           <h1>{t('Audit log')}</h1>
+          <span className="count">{data?.total ?? 0}</span>
           {loading && <Spinner />}
         </div>
         <div className="page-actions">
@@ -38,8 +40,15 @@ export function Audit() {
       <div className="page-body">
         {error && <div className="alert alert-bad">{error.message}</div>}
         <DataTable
-          rows={data || []}
+          rows={data?.items || []}
           rowKey={(e) => String(e.seq)}
+          pagination={{
+            page,
+            perPage,
+            total: data?.total ?? 0,
+            onPageChange: setPage,
+            onPerPageChange: (pp) => { setPerPage(pp); setPage(1) },
+          }}
           columns={[
             { key: 'seq', label: '#', width: 60, render: (e) => <span className="mono small muted">{e.seq}</span> },
             { key: 'when', label: t('When'), render: (e) => <span className="small" title={dateTime(e.created_at)}>{ago(e.created_at)}</span> },
@@ -49,10 +58,6 @@ export function Audit() {
             { key: 'details', label: t('Details'), render: (e) => <span className="mono small muted ellipsis">{JSON.stringify(e.details) === '{}' ? '' : JSON.stringify(e.details)}</span> },
           ]}
         />
-        <div className="row gap" style={{ marginTop: 12 }}>
-          {before > 0 && <button className="btn btn-sm" onClick={() => setBefore(0)}>{t('Newest')}</button>}
-          {data && data.length === 100 && <button className="btn btn-sm" onClick={() => setBefore(data[data.length - 1].seq)}>{t('Older')}</button>}
-        </div>
       </div>
     </div>
   )

@@ -10,7 +10,7 @@ SELECT * FROM users WHERE id = @id;
 SELECT * FROM users WHERE username = @username;
 
 -- name: ListUsers :many
-SELECT * FROM users ORDER BY username;
+SELECT * FROM users ORDER BY username LIMIT CAST(@lim_count AS BIGINT) OFFSET CAST(@lim_offset AS BIGINT);
 
 -- name: CountUsers :one
 SELECT count(*) FROM users;

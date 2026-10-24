@@ -278,6 +278,60 @@ components:
         - created_at
         - updated_at
       type: object
+    PaginatedAuditEvents:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AuditEvent'
+          type: array
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - total
+        - page
+        - per_page
+      type: object
+    PaginatedNotes:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/Note'
+          type: array
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - total
+        - page
+        - per_page
+      type: object
+    PaginatedUsers:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/User'
+          type: array
+        page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+      required:
+        - items
+        - total
+        - page
+        - per_page
+      type: object
     PasswordRequest:
       additionalProperties: false
       properties:
@@ -405,31 +459,27 @@ paths:
   /audit:
     get:
       description: |-
-        Newest first. Pass the last seq of a page as before for the next one.
+        Newest first.
 
         Requires the permission audit.read.
       operationId: listAudit
       parameters:
         - in: query
-          name: before
+          name: page
           schema:
-            format: int64
+            default: 1
             type: integer
         - in: query
-          name: limit
+          name: per_page
           schema:
-            default: 100
-            maximum: 500
-            minimum: 1
+            default: 50
             type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/AuditEvent'
-                type: array
+                $ref: '#/components/schemas/PaginatedAuditEvents'
           description: Events
         "401":
           content:
@@ -836,15 +886,24 @@ paths:
     get:
       description: Pinned first, then the most recently updated.
       operationId: listNotes
+      parameters:
+        - in: query
+          name: page
+          schema:
+            default: 1
+            type: integer
+        - in: query
+          name: per_page
+          schema:
+            default: 50
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/Note'
-                type: array
-          description: All notes
+                $ref: '#/components/schemas/PaginatedNotes'
+          description: Notes
         "401":
           content:
             application/json:
@@ -1311,14 +1370,23 @@ paths:
     get:
       description: Requires the permission users.manage.
       operationId: listUsers
+      parameters:
+        - in: query
+          name: page
+          schema:
+            default: 1
+            type: integer
+        - in: query
+          name: per_page
+          schema:
+            default: 50
+            type: integer
       responses:
         "200":
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/User'
-                type: array
+                $ref: '#/components/schemas/PaginatedUsers'
           description: All users
         "401":
           content:

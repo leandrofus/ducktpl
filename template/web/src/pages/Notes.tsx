@@ -9,7 +9,7 @@ import { Paperclip, Download, Upload } from 'lucide-react'
 import { Share2 } from 'lucide-react'
 // duck:end
 import { api, enc } from '../lib/api'
-import type { Note } from '../lib/api'
+import type { Note, Page } from '../lib/api'
 // duck:if s3
 import { upload } from '../lib/api'
 import type { FileInfo } from '../lib/api'
@@ -53,19 +53,21 @@ async function remove(n: Note) {
 }
 
 export function Notes({ id }: { id?: string }) {
-  const { data, error, loading } = useResource<Note[]>('/notes')
+  const [page, setPage] = useState(1)
+  const [perPage, setPerPage] = useState(25)
+  const { data, error, loading } = useResource<Page<Note>>(`/notes?page=${page}&per_page=${perPage}`)
   const [q, setQ] = useState('')
   const rows = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean)
-    return (data || []).filter((n) => words.every((w) => `${n.title} ${n.body}`.toLowerCase().includes(w)))
-  }, [data, q])
+    return (data?.items || []).filter((n) => words.every((w) => `${n.title} ${n.body}`.toLowerCase().includes(w)))
+  }, [data?.items, q])
   return (
     <div className="page">
       <div className="page-head">
         <div className="page-title">
           <StickyNote size={20} />
           <h1>{t('Notes')}</h1>
-          <span className="count">{data?.length ?? 0}</span>
+          <span className="count">{data?.total ?? 0}</span>
           {loading && <Spinner />}
         </div>
         <div className="page-actions">
@@ -81,7 +83,7 @@ export function Notes({ id }: { id?: string }) {
       </div>
       <div className="page-body">
         {error && <div className="alert alert-bad">{error.message}</div>}
-        {data && data.length === 0 ? (
+        {data && data.total === 0 ? (
           <Empty icon={<StickyNote size={28} />} title={t('No notes yet')} action={<button className="btn btn-primary" onClick={() => openDialog((c) => <NoteFormDialog onClose={c} />)}><Plus size={14} /> {t('Write the first one')}</button>}>
             {t('Notes are the example resource of this template: table, queries, handlers and this page.')}
           </Empty>
@@ -92,6 +94,13 @@ export function Notes({ id }: { id?: string }) {
             onOpen={(n) => go('notes', n.id)}
             rowMenu={noteActions}
             defaultSort={{ key: 'updated', dir: -1 }}
+            pagination={{
+              page,
+              perPage,
+              total: data?.total ?? 0,
+              onPageChange: setPage,
+              onPerPageChange: (pp) => { setPerPage(pp); setPage(1) },
+            }}
             columns={[
               { key: 'title', label: t('Title'), sort: (n) => n.title.toLowerCase(), render: (n) => <strong>{n.title}</strong> },
               { key: 'pinned', label: '', width: 40, sort: (n) => (n.pinned ? 1 : 0), render: (n) => (n.pinned ? <Pin size={13} className="muted" /> : null) },

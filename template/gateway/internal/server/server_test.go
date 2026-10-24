@@ -147,6 +147,14 @@ func TestCSRFHeaderRequired(t *testing.T) {
 	}
 }
 
+// seedNote creates a note for tests that need one (ducktpl ref fields).
+func seedNote(c *client) string {
+	c.t.Helper()
+	var n noteDTO
+	c.must(201, "POST", "/notes", map[string]any{"title": "seed " + store.NewID()}, &n)
+	return n.ID
+}
+
 func TestNotes(t *testing.T) {
 	c := newClient(t, newTestServer(t))
 	// duck:if auth
@@ -165,15 +173,15 @@ func TestNotes(t *testing.T) {
 	if !n.Pinned || n.Body != "hi" {
 		t.Fatalf("patched %+v", n)
 	}
-	var list []noteDTO
+	var list paginatedNotes
 	c.must(200, "GET", "/notes", nil, &list)
-	if len(list) != 1 || !list[0].Pinned {
+	if len(list.Items) != 1 || !list.Items[0].Pinned || list.Total != 1 {
 		t.Fatalf("list %+v", list)
 	}
 	c.must(204, "DELETE", "/notes/"+n.ID, nil, nil)
 	c.must(404, "GET", "/notes/"+n.ID, nil, nil)
 	c.must(200, "GET", "/notes", nil, &list)
-	if len(list) != 0 {
+	if len(list.Items) != 0 || list.Total != 0 {
 		t.Fatalf("list after delete %+v (stale cache?)", list)
 	}
 }
@@ -234,10 +242,10 @@ func TestRolesAndGrants(t *testing.T) {
 
 	bc := newClient(t, ts)
 	bc.login("bob", "bob-password")
-	var list []noteDTO
+	var list paginatedNotes
 	bc.must(200, "GET", "/notes", nil, &list)
-	if len(list) != 0 {
-		t.Fatalf("bob sees %d notes without grants", len(list))
+	if len(list.Items) != 0 {
+		t.Fatalf("bob sees %d notes without grants", len(list.Items))
 	}
 	bc.must(403, "GET", "/notes/"+a.ID, nil, nil)
 
@@ -245,7 +253,7 @@ func TestRolesAndGrants(t *testing.T) {
 	var g grantDTO
 	admin.must(201, "POST", "/grants", map[string]any{"subject_type": "user", "subject_id": bob.ID, "object_type": "note", "object_id": a.ID, "permission": "notes.read"}, &g)
 	bc.must(200, "GET", "/notes", nil, &list)
-	if len(list) != 1 || list[0].ID != a.ID {
+	if len(list.Items) != 1 || list.Items[0].ID != a.ID {
 		t.Fatalf("bob sees %+v", list)
 	}
 	bc.must(403, "PATCH", "/notes/"+a.ID, map[string]any{"body": "x"}, nil)
@@ -279,9 +287,9 @@ func TestAuditChain(t *testing.T) {
 	var n noteDTO
 	c.must(201, "POST", "/notes", map[string]any{"title": "a"}, &n)
 	c.must(204, "DELETE", "/notes/"+n.ID, nil, nil)
-	var evs []auditEventDTO
+	var evs paginatedAuditEvents
 	c.must(200, "GET", "/audit", nil, &evs)
-	if len(evs) < 2 || evs[0].Action != "note.delete" {
+	if len(evs.Items) < 2 || evs.Items[0].Action != "note.delete" {
 		t.Fatalf("audit %+v", evs)
 	}
 	var v audit.Verification

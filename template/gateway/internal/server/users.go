@@ -68,13 +68,37 @@ type passwordRequest struct {
 	Password string `json:"password"`
 }
 
+// openapi:schema PaginatedUsers
+// type: object
+// required: [items, total, page, per_page]
+// properties:
+//   items: { type: array, items: { $ref: '#/components/schemas/User' } }
+//   total: { type: integer }
+//   page: { type: integer }
+//   per_page: { type: integer }
+
+type paginatedUsers struct {
+	Items   []userDTO `json:"items"`
+	Total   int       `json:"total"`
+	Page    int       `json:"page"`
+	PerPage int       `json:"per_page"`
+}
+
 // openapi:operation
 // summary: List users
+// parameters:
+//   - { name: page, in: query, schema: { type: integer, default: 1 } }
+//   - { name: per_page, in: query, schema: { type: integer, default: 50 } }
 // responses:
-//   '200': { description: All users, schema: '[]User' }
+//   '200': { description: All users, schema: PaginatedUsers }
 
 func (s *Server) listUsers(w http.ResponseWriter, r *http.Request, p principal) error {
-	us, err := s.Store.Q.ListUsers(r.Context())
+	page, perPage, offset := pageParams(r)
+	total, err := s.Store.Q.CountUsers(r.Context())
+	if err != nil {
+		return err
+	}
+	us, err := s.Store.Q.ListUsers(r.Context(), db.ListUsersParams{LimCount: int64(perPage), LimOffset: int64(offset)})
 	if err != nil {
 		return err
 	}
@@ -82,7 +106,7 @@ func (s *Server) listUsers(w http.ResponseWriter, r *http.Request, p principal) 
 	for _, u := range us {
 		out = append(out, toUser(u))
 	}
-	return ok(w, out)
+	return ok(w, paginatedUsers{Items: out, Total: int(total), Page: page, PerPage: perPage})
 }
 
 // openapi:operation

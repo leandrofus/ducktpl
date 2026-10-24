@@ -47,6 +47,22 @@ func toNote(n db.Note) noteDTO {
 	return noteDTO{ID: n.ID, Title: n.Title, Body: n.Body, Pinned: n.Pinned, CreatedAt: n.CreatedAt.UTC(), UpdatedAt: n.UpdatedAt.UTC()}
 }
 
+// openapi:schema PaginatedNotes
+// type: object
+// required: [items, total, page, per_page]
+// properties:
+//   items: { type: array, items: { $ref: '#/components/schemas/Note' } }
+//   total: { type: integer }
+//   page: { type: integer }
+//   per_page: { type: integer }
+
+type paginatedNotes struct {
+	Items   []noteDTO `json:"items"`
+	Total   int       `json:"total"`
+	Page    int       `json:"page"`
+	PerPage int       `json:"per_page"`
+}
+
 // openapi:schema CreateNoteRequest
 // type: object
 // required: [title]
@@ -99,36 +115,48 @@ func validTitle(t string) (string, error) {
 // openapi:operation
 // summary: List notes
 // description: Pinned first, then the most recently updated.
+// parameters:
+//   - { name: page, in: query, schema: { type: integer, default: 1 } }
+//   - { name: per_page, in: query, schema: { type: integer, default: 50 } }
 // responses:
-//   '200': { description: All notes, schema: '[]Note' }
+//   '200': { description: Notes, schema: PaginatedNotes }
 
 func (s *Server) listNotes(w http.ResponseWriter, r *http.Request, p principal) error {
 	all, ids, err := s.visible(r, p, permNotesRead, "note")
 	if err != nil {
 		return err
 	}
-	ns, err := s.allNotes(r)
+	page, perPage, offset := pageParams(r)
+	total, err := s.Store.Q.CountNotes(r.Context())
+	if err != nil {
+		return err
+	}
+	ns, err := s.Store.Q.ListNotes(r.Context(), db.ListNotesParams{LimCount: int64(perPage), LimOffset: int64(offset)})
 	if err != nil {
 		return err
 	}
 	out := make([]noteDTO, 0, len(ns))
 	for _, n := range ns {
 		if all || ids[n.ID] {
-			out = append(out, n)
+			out = append(out, toNote(n))
 		}
 	}
-	return ok(w, out)
+	tot := int(total)
+	if !all {
+		tot = len(out)
+	}
+	return ok(w, paginatedNotes{Items: out, Total: tot, Page: page, PerPage: perPage})
 }
 
-// allNotes reads every note, through the cache when there is one.
+// allNotes reads up to 100 notes, through the cache when there is one.
 func (s *Server) allNotes(r *http.Request) ([]noteDTO, error) {
 	// duck:if redis
 	var cached []noteDTO
-	if s.Cache.GetJSON(r.Context(), "note:list", &cached) {
+	if s.Cache.GetJSON(r.Context(), "note:all", &cached) {
 		return cached, nil
 	}
 	// duck:end
-	ns, err := s.Store.Q.ListNotes(r.Context())
+	ns, err := s.Store.Q.ListNotes(r.Context(), db.ListNotesParams{LimCount: 100, LimOffset: 0})
 	if err != nil {
 		return nil, err
 	}
@@ -137,7 +165,7 @@ func (s *Server) allNotes(r *http.Request) ([]noteDTO, error) {
 		out = append(out, toNote(n))
 	}
 	// duck:if redis
-	s.Cache.SetJSON(r.Context(), "note:list", out, time.Minute)
+	s.Cache.SetJSON(r.Context(), "note:all", out, time.Minute)
 	// duck:end
 	return out, nil
 }
@@ -254,6 +282,7 @@ func (s *Server) deleteNote(w http.ResponseWriter, r *http.Request, p principal)
 			return err
 		}
 		// duck:end
+		// ducktpl:on-delete note (before the row goes: what references it)
 		n, err := s.Store.Q.DeleteNote(r.Context(), id)
 		if err != nil {
 			return err
@@ -263,6 +292,7 @@ func (s *Server) deleteNote(w http.ResponseWriter, r *http.Request, p principal)
 		}
 		s.record(r, p, "note.delete", "note", id, nil)
 		s.changed(r, "note", id)
+		// ducktpl:on-deleted note
 		return nil
 	})
 }
