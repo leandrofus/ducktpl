@@ -114,5 +114,6 @@ What ducktpl does, for code it cannot generate:
   the existing classes (`page`, `page-head`, `btn`, `field`, `tag`…). Change the
   brand by changing `--accent*` only.
 - Reuse `ui/common.tsx` (DataTable, Section, Props, Tag, Pill, Empty,
-  MenuButton) and `ui/overlays.tsx` (Modal, Drawer, confirm, prompt, toast)
+  MenuButton) and `ui/overlays.tsx` (Modal, Drawer, confirm, prompt, and
+  `toast.ok / toast.err / toast.info`: there is no `toast.bad`)
   before writing new components. Right-click menus come from `useMenu()`.

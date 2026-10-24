@@ -314,15 +314,20 @@ function main() {
       const targetMod = rest[2]
       if (!targetMod) die('which module to add? e.g. ducktpl module add audit', 'ERR_ARGS', opts.json)
       try {
-        const res = activateModule(p, TEMPLATE, targetMod, opts)
+        const { rollback, ...res } = activateModule(p, TEMPLATE, targetMod, opts)
+        const done = !res.alreadyActive && !res.dryRun
+        // sqlc, the OpenAPI spec and the UI types follow the module's queries and handlers
+        const generated = done ? runGeneration(p, opts, rollback) : true
         if (opts.json) {
-          console.log(JSON.stringify({ status: 'ok', action: 'module:add', ...res }, null, 2))
+          console.log(JSON.stringify({ status: 'ok', action: 'module:add', generated, ...res }, null, 2))
         } else {
           if (res.alreadyActive) {
             console.log(yellow(`Module "${targetMod}" is already active.`))
           } else {
             console.log(res.dryRun ? yellow(`Would activate module "${targetMod}" (${res.label})`) : green(`✓ Activated module "${targetMod}" (${res.label})`))
             for (const f of res.filesAdded) console.log(`  ${green('create/update')} ${f}`)
+            for (const f of res.mergedBoth ?? []) console.log(`  ${yellow('check')} ${f}: the project and the module added lines at the same spot; both were kept`)
+            for (const c of res.conflicts ?? []) console.log(`  ${yellow('merge by hand')} ${c.path}: ${c.reason}`)
             if (res.dryRun) console.log(dim('\n--dry-run: nothing written'))
           }
         }
