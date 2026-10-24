@@ -13,6 +13,7 @@ import { planAction } from '../lib/action.mjs'
 import { checkProject } from '../lib/doctor.mjs'
 import { listModules, activateModule } from '../lib/modules.mjs'
 import { planSeed } from '../lib/seed.mjs'
+import { planObserver } from '../lib/observer.mjs'
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'template')
 
@@ -28,6 +29,7 @@ const USAGE = `${bold('ducktpl')} — generators for create-duck projects
   ducktpl addScope <resource> <field:type[!]>...
   ducktpl addToScope <scope> <resource> <field:type[!]>...
   ducktpl addAction <resource> <action>
+  ducktpl on <event> <name> [--preset <email|cache|webhook|log>]
   ducktpl apply <schema-file>
   ducktpl remove <resource>
   ducktpl moddb addColumn <table> <field:type[!]>
@@ -55,6 +57,7 @@ Adds resources, RPC actions, alters schemas safely, molds DTOs, or applies batch
   --remove field  remove field from DTO
   --dto f1,f2     (for add) specify which fields to expose in the DTO
   --omit-dto f1   (for add) specify which fields to exclude from the DTO
+  --preset type   (for on) observer preset: log, email, cache, webhook
   --json          machine-readable JSON output (ideal for AI agents)
   --no-rollback   disable automatic rollback if build/generation fails
   --dry-run       list what would change, write nothing
@@ -162,6 +165,7 @@ function main() {
     remove: undefined,
     dto: '',
     dtoOmit: '',
+    preset: 'log',
     json: isJsonGlobal,
     noRollback: false,
   }
@@ -182,6 +186,7 @@ function main() {
     else if (a === '--remove') opts.remove = argv[++i] ?? die('--remove needs a value', 'ERR_ARGS', opts.json)
     else if (a === '--dto') opts.dto = argv[++i] ?? die('--dto needs a value', 'ERR_ARGS', opts.json)
     else if (a === '--omit-dto') opts.dtoOmit = argv[++i] ?? die('--omit-dto needs a value', 'ERR_ARGS', opts.json)
+    else if (a === '--preset') opts.preset = argv[++i] ?? die('--preset needs a value', 'ERR_ARGS', opts.json)
     else if (a === '--addRoute' || a === '--add-route') rest.push('add')
     else if (a === '--addScope' || a === '--add-scope') rest.push('addScope')
     else if (a === '--addToScope' || a === '--add-to-scope') rest.push('addToScope')
@@ -514,6 +519,59 @@ function main() {
       }, null, 2))
     } else {
       console.log(`\n${green('Done.')} Action "${actionName}" added on ${planned.route}.`)
+    }
+    return
+  }
+
+  // 6. Add Domain Event Observer / Subscriber
+  if (cmd === 'on' || cmd === 'observer' || cmd === 'subscribe') {
+    const eventPattern = rest[1]
+    const observerName = rest[2]
+    if (!eventPattern || !observerName) die('which event and observer? e.g. ducktpl on posts.like invalidateCache --preset cache', 'ERR_ARGS', opts.json)
+    let planned
+    try {
+      planned = planObserver(p, eventPattern, observerName, opts)
+    } catch (e) {
+      die(e.message, 'ERR_OBSERVER_FAILED', opts.json)
+    }
+
+    if (opts.dry) {
+      if (opts.json) {
+        console.log(JSON.stringify({
+          status: 'ok',
+          dryRun: true,
+          action: 'on',
+          event: eventPattern,
+          observerName,
+          preset: planned.preset,
+          files: planned.files.map((f) => ({ path: f.path, action: f.created ? 'create' : 'update' })),
+          notes: planned.notes,
+        }, null, 2))
+      } else {
+        console.log(`${bold('Registering observer')} ${observerName} on ${eventPattern} (${planned.preset})`)
+        for (const f of planned.files) console.log(`  ${f.created ? green('create') : yellow('update')} ${f.path}`)
+        console.log(dim('\n--dry-run: nothing written'))
+      }
+      return
+    }
+
+    const res = applyWithRollback(p.root, planned.files)
+    const generatedOk = runGeneration(p, opts, () => res.rollback())
+
+    if (opts.json) {
+      console.log(JSON.stringify({
+        status: 'ok',
+        action: 'on',
+        event: eventPattern,
+        observerName,
+        preset: planned.preset,
+        method: planned.method,
+        files: planned.files.map((f) => ({ path: f.path, action: f.created ? 'create' : 'update' })),
+        notes: planned.notes,
+        generated: generatedOk,
+      }, null, 2))
+    } else {
+      console.log(`\n${green('Done.')} Observer "${observerName}" subscribed to "${eventPattern}" (${planned.preset}).`)
     }
     return
   }

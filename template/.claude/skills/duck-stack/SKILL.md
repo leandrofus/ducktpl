@@ -132,6 +132,16 @@ npx ducktpl addAction tasks complete --json
 npx ducktpl addAction invoices send --json
 ```
 
+### 4b. Event Observers & Subscribers (`on` / `subscribe`)
+Generate asynchronous domain event observers for Event-Driven Architectures (EDA):
+```sh
+# Subscribe to an event with a preset (email, cache, webhook, log)
+npx ducktpl on posts.create sendNotification --preset email --json
+npx ducktpl on posts.like invalidateCache --preset cache --json
+npx ducktpl on places.checkin triggerWebhook --preset webhook --json
+```
+Generates typed handlers in `gateway/internal/server/observers.go`, wires subscriptions at `// ducktpl:observers`, and writes concurrent Go unit tests.
+
 ### 5. Safe Resource Removal (`remove`)
 Safely remove a scaffolded resource, deleting its files and cleaning up its lines in routes, auth, rbac, and web navigation:
 ```sh
