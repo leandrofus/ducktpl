@@ -28,13 +28,54 @@ This skill guides AI agents in scaffolding, extending, and modifying full-stack 
 
 ## Command Reference
 
-### 1. Project Introspection & Health Check
+### 1. Project Initialization & Introspection
+
+#### Declarative Project Creation (`create-duck --manifest`)
+Scaffold a complete full-stack app non-interactively from a `duck.yaml` or `duck.json` manifest:
+```sh
+npx create-duck --manifest duck.yaml --yes --json
+```
+
+Example `duck.yaml`:
+```yaml
+app:
+  name: bookstore
+  web: react # react | preact
+  rls: singleTenant # singleTenant | multitenant
+  modules:
+    - eventbus
+    - audit
+    - ws
+
+resources:
+  authors:
+    fields:
+      name: string!
+      bio: text
+  books:
+    scope: authors
+    fields:
+      title: string!
+      price: float:default(0)
+```
+
+#### Inspection & Health Check
 ```sh
 # Inspect project features, tables, types, and anchors
 npx ducktpl info --json
 
 # Verify project sanity (anchors, migrations parity, Go vet)
 npx ducktpl check --json
+```
+
+### 1b. Modular Opt-In Features (`ducktpl module`)
+List and activate optional modules late in the lifecycle without re-scaffolding:
+```sh
+# List available and active modules
+npx ducktpl module list --json
+
+# Activate an optional module (e.g. audit, eventbus, s3, rbac, redis, ws, sse)
+npx ducktpl module add audit --json
 ```
 
 ### 2. Scaffold Resources
@@ -151,6 +192,32 @@ npx ducktpl dto notes --omit pinned,internal_notes --json
 - `:unique` : Adds `UNIQUE` constraint in migrations (`email:string!:unique`)
 - `:index` : Creates index in SQLite and Postgres (`slug:string:index`)
 - `:default(<val>)` : Sets custom default value in schema (`status:string:default(pending)`)
+
+---
+
+## Domain EventBus & Observer Pattern
+
+When `eventbus` (or `ws` / `sse`) is enabled, projects include an in-process, non-blocking pub/sub `EventBus` (`gateway/internal/events/events.go`).
+
+### Observer Subscription (`events.On`)
+Register asynchronous event observers anywhere in the backend (e.g. audit logger, email notifications, webhooks):
+```go
+// Subscribe to domain event prefixes
+unsub := srv.Events.On("order.", func(ev events.Event) {
+    log.Printf("order event received: %s, ID: %s, payload: %+v", ev.Type, ev.ID, ev.Data)
+})
+defer unsub()
+```
+
+### Event Publishing (`events.PublishEvent`)
+Publish rich domain events with strongly typed payloads:
+```go
+srv.Events.PublishEvent(ctx, events.Event{
+    Type: "order.placed",
+    ID:   order.ID,
+    Data: order,
+})
+```
 
 ---
 

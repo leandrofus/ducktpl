@@ -2,7 +2,8 @@
 // ducktpl: generators for a project made with create-duck.
 import { spawnSync } from 'node:child_process'
 import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { TYPES, TYPE_ALIASES, applyWithRollback, findProject, inspect, parseFields, plan, resourceNames } from '../lib/generate.mjs'
 import { planModdb } from '../lib/moddb.mjs'
 import { planDTO } from '../lib/dto.mjs'
@@ -10,6 +11,9 @@ import { planApply } from '../lib/apply.mjs'
 import { planRemove } from '../lib/remove.mjs'
 import { planAction } from '../lib/action.mjs'
 import { checkProject } from '../lib/doctor.mjs'
+import { listModules, activateModule } from '../lib/modules.mjs'
+
+const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'template')
 
 const tty = process.stdout.isTTY
 const c = (code) => (s) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s)
@@ -30,6 +34,7 @@ const USAGE = `${bold('ducktpl')} — generators for create-duck projects
   ducktpl moddb changeType <table> <column:type[!]> --force
   ducktpl moddb renameColumn <table> <old_name> <new_name>
   ducktpl dto <resource> [fields...] [options]
+  ducktpl module [list|add <name>] [options]
   ducktpl info [options]
   ducktpl check [options]
 
@@ -62,6 +67,7 @@ Commands:
   remove          safely remove a scaffolded resource and clean up code
   moddb           database schema migrations (addColumn, removeColumn, changeType, renameColumn)
   dto             mold response DTOs, prevent leaking internal fields, reduce output size
+  module          list or activate optional features (audit, eventbus, s3, etc.)
   info            inspect project features, available types and existing tables
   check           health check: verify anchors, migrations parity and compilation
 
@@ -258,6 +264,48 @@ function main() {
     }
     if (!res.healthy) process.exitCode = 1
     return
+  }
+
+  // 2b. Optional Modules Command (list, add)
+  if (cmd === 'module' || cmd === 'modules') {
+    const sub = rest[1]
+    if (!sub || sub === 'list') {
+      const mods = listModules(p)
+      if (opts.json) {
+        console.log(JSON.stringify({ status: 'ok', action: 'module', modules: mods }, null, 2))
+      } else {
+        console.log(bold('Optional modules for duck-template:'))
+        for (const m of mods) {
+          const badge = m.active ? green('[active]') : dim('[inactive]')
+          const reqs = m.requires?.length ? dim(` (needs ${m.requires.join(', ')})`) : ''
+          console.log(`  ${badge} ${bold(m.id.padEnd(10))} ${m.label} — ${dim(m.hint)}${reqs}`)
+        }
+      }
+      return
+    }
+
+    if (sub === 'add' || sub === 'enable') {
+      const targetMod = rest[2]
+      if (!targetMod) die('which module to add? e.g. ducktpl module add audit', 'ERR_ARGS', opts.json)
+      try {
+        const res = activateModule(p, TEMPLATE, targetMod, opts)
+        if (opts.json) {
+          console.log(JSON.stringify({ status: 'ok', action: 'module:add', ...res }, null, 2))
+        } else {
+          if (res.alreadyActive) {
+            console.log(yellow(`Module "${targetMod}" is already active.`))
+          } else {
+            console.log(green(`✓ Activated module "${targetMod}" (${res.label})`))
+            for (const f of res.filesAdded) console.log(`  ${green('create/update')} ${f}`)
+          }
+        }
+      } catch (e) {
+        die(e.message, 'ERR_MODULE_FAILED', opts.json)
+      }
+      return
+    }
+
+    die(`unknown module subcommand "${sub}" (valid: list, add <name>)`, 'ERR_ARGS', opts.json)
   }
 
   // 3. Declarative Schema Apply Command

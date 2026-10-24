@@ -179,10 +179,10 @@ func run(c config) error {
 	}
 	// duck:end
 
-	// duck:if ws|sse
+	// duck:if ws|sse|eventbus
 	srv.Events = events.New()
 	// duck:end
-	// duck:if ws|sse redis
+	// duck:if ws|sse|eventbus redis
 	if rdb != nil {
 		srv.Events.UseRedis(ctx, rdb, "duckapp:events")
 	}

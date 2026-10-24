@@ -6,12 +6,14 @@
 //   npx create-duck my-app --web preact --with auth,rbac,sse --yes
 //   create-duck --check                validate the template (for its CI)
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { FEATURES, TENANTS, WEBS, configure } from '../lib/features.mjs'
 import { multiSelect, select, textInput } from '../lib/prompt.mjs'
 import { check, isEmptyDir, names, removeEmptyDirs, scaffold } from '../lib/scaffold.mjs'
+import { parseSchemaText, planApply } from '../lib/apply.mjs'
+import { applyWithRollback, inspect } from '../lib/generate.mjs'
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'template')
 const tty = process.stdout.isTTY
@@ -20,12 +22,14 @@ const bold = c(1), dim = c(2), green = c(32), yellow = c(33), red = c(31), cyan 
 
 const USAGE = `${bold('create-duck')} <name> [options]
 
+  --manifest <file>      scaffold non-interactively from a duck.yaml or duck.json manifest
   --web react|preact     web framework (default react)
   --rls singleTenant|multitenant tenant isolation with RLS (mandatory; default singleTenant with -y)
   --with a,b,c           modules (see below); "all" for every one
   --owner <github-user>  Go module path github.com/<owner>/<name> (default: git config github.user)
   --yes, -y              no questions: defaults for what is not given
   --no-install           skip go mod tidy, code generation, bun install and git init
+  --json                 machine-readable JSON output
   --check                validate the template's markers and exit
 
 Modules:
@@ -33,11 +37,14 @@ ${FEATURES.map((f) => `  ${f.id.padEnd(7)} ${f.label} — ${dim(f.hint)}${f.requ
 `
 
 function parseArgs(argv) {
-  const a = { with: null, web: null, rls: null, owner: null, yes: false, install: true, check: false, name: null, help: false }
+  const a = { with: null, web: null, rls: null, owner: null, yes: false, install: true, check: false, name: null, help: false, manifest: null, json: false }
   for (let i = 0; i < argv.length; i++) {
     const x = argv[i]
     const val = () => argv[++i] ?? die(`${x} needs a value`)
-    if (x === '--with') a.with = val()
+    if (x === '--manifest') a.manifest = val()
+    else if (x.startsWith('--manifest=')) a.manifest = x.slice(11)
+    else if (x === '--json') a.json = true
+    else if (x === '--with') a.with = val()
     else if (x.startsWith('--with=')) a.with = x.slice(7)
     else if (x === '--web') a.web = val()
     else if (x.startsWith('--web=')) a.web = x.slice(6)
@@ -107,11 +114,34 @@ async function main() {
     const n = check(TEMPLATE)
     return console.log(green('✓ ') + `${n} template files follow the marker rules`)
   }
-  if (!args.yes && process.stdin.isTTY) await ask(args)
+
+  // Detect and parse manifest (duck.yaml / duck.json)
+  const candidateManifest = args.manifest || (args.name && (args.name.endsWith('.yaml') || args.name.endsWith('.yml') || args.name.endsWith('.json')) && existsSync(args.name) ? args.name : null)
+  let manifestRaw = null
+  let manifestObj = null
+  if (candidateManifest && existsSync(candidateManifest)) {
+    manifestRaw = readFileSync(candidateManifest, 'utf8')
+    manifestObj = parseSchemaText(manifestRaw)
+    if (manifestObj.app) {
+      if (manifestObj.app.name) args.name = manifestObj.app.name
+      if (manifestObj.app.web) args.web = manifestObj.app.web
+      if (manifestObj.app.rls) args.rls = manifestObj.app.rls
+      if (manifestObj.app.owner) args.owner = manifestObj.app.owner
+      if (manifestObj.app.modules) {
+        if (Array.isArray(manifestObj.app.modules)) {
+          args.with = manifestObj.app.modules.join(',')
+        } else if (typeof manifestObj.app.modules === 'object') {
+          args.with = Object.entries(manifestObj.app.modules).filter(([, v]) => v).map(([k]) => k).join(',')
+        }
+      }
+    }
+  }
+
+  if (!args.yes && !manifestRaw && process.stdin.isTTY) await ask(args)
   args.web ??= 'react'
   args.owner ??= gitConfig('github.user') || 'leandrofus'
   if (!args.rls) {
-    if (!args.yes) die('an RLS model is required: pass --rls singleTenant or --rls multitenant\n\n' + USAGE)
+    if (!args.yes && !manifestRaw) die('an RLS model is required: pass --rls singleTenant or --rls multitenant\n\n' + USAGE)
     args.rls = 'singleTenant'
   }
   if (!args.name) die('a project name is required\n\n' + USAGE)
@@ -129,13 +159,46 @@ async function main() {
 
   const n = names(args.name, args.owner)
   const on = FEATURES.filter((f) => cfg[f.id]).map((f) => f.id)
-  console.log(`\n${bold('Creating')} ${n.display} in ${dest}`)
-  console.log(dim(`  web: ${args.web} · rls: ${args.rls} · modules: ${on.join(', ') || 'none'} · module: ${n.module}/gateway\n`))
+  if (!args.json) {
+    console.log(`\n${bold('Creating')} ${n.display} in ${dest}`)
+    console.log(dim(`  web: ${args.web} · rls: ${args.rls} · modules: ${on.join(', ') || 'none'} · module: ${n.module}/gateway\n`))
+  }
   const files = scaffold(TEMPLATE, dest, cfg, n)
   removeEmptyDirs(dest)
-  console.log(green('✓ ') + `${files.length} files`)
+  if (!args.json) console.log(green('✓ ') + `${files.length} files`)
+
+  // Save manifest into scaffolded project
+  if (manifestRaw) {
+    writeFileSync(join(dest, 'duck.yaml'), manifestRaw, 'utf8')
+  }
+
+  // Apply declarative schema resources if defined
+  let appliedResources = []
+  if (manifestObj && manifestObj.resources && Object.keys(manifestObj.resources).length > 0) {
+    try {
+      const p = inspect(dest)
+      const planned = planApply(p, manifestRaw, { generate: false })
+      applyWithRollback(dest, planned.files)
+      appliedResources = planned.resources
+    } catch (e) {
+      if (!args.json) console.error(yellow('! Failed applying initial schema resources: ' + e.message))
+    }
+  }
 
   if (args.install) postInstall(dest, cfg)
+
+  if (args.json) {
+    console.log(JSON.stringify({
+      status: 'ok',
+      name: n.lower,
+      dest,
+      web: args.web,
+      rls: args.rls,
+      modules: on,
+      resources: appliedResources,
+    }, null, 2))
+    return
+  }
 
   console.log(`
 ${green('Done.')} Next:

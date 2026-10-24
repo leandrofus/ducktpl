@@ -39,7 +39,7 @@ type Server struct {
 	// duck:if audit
 	Audit *audit.Log
 	// duck:end
-	// duck:if ws|sse
+	// duck:if ws|sse|eventbus
 	Events *events.Bus
 	// duck:end
 	// duck:if redis
