@@ -1,7 +1,7 @@
 import { t as tr } from '../i18n'
 import { useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, MoreHorizontal } from 'lucide-react'
+import { ArrowDown, ArrowUp, ChevronDown, ChevronRight, Download, MoreHorizontal } from 'lucide-react'
 import { useMenu, useMenuAt } from './ContextMenu'
 import type { MenuEntry } from './ContextMenu'
 import { hue, stateLabel, stateTone } from '../lib/format'
@@ -158,6 +158,9 @@ export function DataTable<T>({
   defaultSort,
   rowClass,
   pagination,
+  renderChildRow,
+  exportCsv,
+  density,
 }: {
   rows: T[]
   columns: Column<T>[]
@@ -175,11 +178,42 @@ export function DataTable<T>({
   defaultSort?: { key: string; dir: 1 | -1 }
   rowClass?: (r: T) => string
   pagination?: PaginationConfig
+  renderChildRow?: (r: T) => ReactNode
+  exportCsv?: boolean | string
+  density?: 'compact' | 'comfortable'
 }) {
   const menu = useMenu()
   const [sort, setSort] = useState(defaultSort ?? { key: '', dir: 1 as 1 | -1 })
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
+  const [expandedChild, setExpandedChild] = useState<Set<string>>(new Set())
   const lastClicked = useRef<string | null>(null)
+
+  const toggleChild = (k: string) => {
+    const next = new Set(expandedChild)
+    next.has(k) ? next.delete(k) : next.add(k)
+    setExpandedChild(next)
+  }
+
+  const downloadCsv = (filename: string, cols: Column<T>[], dataRows: T[]) => {
+    const headers = cols.map((c) => (typeof c.label === 'string' ? c.label : c.key))
+    const lines = [headers.join(',')]
+    for (const r of dataRows) {
+      const rowVals = cols.map((c) => {
+        let val = c.sort ? c.sort(r) : ''
+        if (val === undefined || val === null) val = ''
+        const str = String(val).replace(/"/g, '""')
+        return str.includes(',') || str.includes('\n') || str.includes('"') ? `"${str}"` : str
+      })
+      lines.push(rowVals.join(','))
+    }
+    const blob = new Blob(['\uFEFF' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url
+    a.download = filename.endsWith('.csv') ? filename : filename + '.csv'
+    a.click()
+    URL.revokeObjectURL(url)
+  }
 
   const totalPages = pagination ? Math.max(1, Math.ceil(pagination.total / pagination.perPage)) : 1
   const from = pagination ? (pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.perPage + 1) : 1
@@ -237,10 +271,11 @@ export function DataTable<T>({
   if (!rows.length && (!pagination || pagination.total === 0)) return <>{empty}</>
 
   return (
-    <div className="table-wrap">
+    <div className={`table-wrap${density === 'compact' ? ' table-compact' : ''}`}>
       <table className="table">
         <thead>
           <tr>
+            {renderChildRow && <th className="col-expand" />}
             {setSelected && (
               <th className="col-check">
                 <input
@@ -280,6 +315,7 @@ export function DataTable<T>({
                   }}
                   onContextMenu={groupMenu ? menu(() => groupMenu(g, rs), g || undefined) : undefined}
                 >
+                  {renderChildRow && <td className="col-expand" />}
                   {setSelected && (
                     <td className="col-check">
                       <input
@@ -309,74 +345,103 @@ export function DataTable<T>({
                 rs.map((r, ri) => {
                   const k = rowKey(r)
                   const tree = groupBy ? ` tree-child${ri === rs.length - 1 ? ' tree-last' : ''}` : ''
+                  const isExpanded = expandedChild.has(k)
                   return (
-                    <tr
-                      key={k}
-                      className={`${sel.has(k) ? 'selected' : ''} ${rowClass?.(r) ?? ''}${tree}`}
-                      onClick={(e) => {
-                        if ((e.target as HTMLElement).closest('button,a,input,.tag.clickable')) return
-                        if (e.metaKey || e.ctrlKey || e.shiftKey) toggle(r, e.shiftKey)
-                        else if (onPreview) onPreview(r)
-                        else onOpen?.(r)
-                      }}
-                      onDoubleClick={() => onOpen?.(r)}
-                      onContextMenu={onRowMenu(r)}
-                    >
-                      {setSelected && (
-                        <td className="col-check" onClick={(e) => e.stopPropagation()}>
-                          <input type="checkbox" checked={sel.has(k)} onChange={(e) => toggle(r, (e.nativeEvent as MouseEvent).shiftKey)} />
-                        </td>
+                    <GroupRows key={k}>
+                      <tr
+                        className={`${sel.has(k) ? 'selected' : ''} ${rowClass?.(r) ?? ''}${tree}`}
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest('button,a,input,.tag.clickable')) return
+                          if (e.metaKey || e.ctrlKey || e.shiftKey) toggle(r, e.shiftKey)
+                          else if (onPreview) onPreview(r)
+                          else onOpen?.(r)
+                        }}
+                        onDoubleClick={() => onOpen?.(r)}
+                        onContextMenu={onRowMenu(r)}
+                      >
+                        {renderChildRow && (
+                          <td className="col-expand" onClick={(e) => { e.stopPropagation(); toggleChild(k) }}>
+                            <button type="button" className="icon-btn xs" title={isExpanded ? 'Colapsar' : 'Expandir'}>
+                              {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+                            </button>
+                          </td>
+                        )}
+                        {setSelected && (
+                          <td className="col-check" onClick={(e) => e.stopPropagation()}>
+                            <input type="checkbox" checked={sel.has(k)} onChange={(e) => toggle(r, (e.nativeEvent as MouseEvent).shiftKey)} />
+                          </td>
+                        )}
+                        {columns.map((c, ci) => (
+                          <td key={c.key} className={`${c.className ?? ''}${groupBy && ci === 0 ? ' tree-cell' : ''}`}>
+                            {c.render(r)}
+                          </td>
+                        ))}
+                      </tr>
+                      {renderChildRow && isExpanded && (
+                        <tr className="child-row">
+                          <td colSpan={columns.length + (setSelected ? 1 : 0) + 1} className="child-row-cell">
+                            {renderChildRow(r)}
+                          </td>
+                        </tr>
                       )}
-                      {columns.map((c, ci) => (
-                        <td key={c.key} className={`${c.className ?? ''}${groupBy && ci === 0 ? ' tree-cell' : ''}`}>
-                          {c.render(r)}
-                        </td>
-                      ))}
-                    </tr>
+                    </GroupRows>
                   )
                 })}
             </GroupRows>
           ))}
         </tbody>
       </table>
-      {pagination && pagination.total > 0 && (
+      {(pagination && pagination.total > 0) || exportCsv ? (
         <div className="table-foot">
           <div className="table-count">
-            {tr('Showing {0}–{1} of {2}', from, to, pagination.total)}
+            {pagination && pagination.total > 0 ? tr('Showing {0}–{1} of {2}', from, to, pagination.total) : `${flat.length} items`}
           </div>
-          <div className="table-pages">
+          <span className="grow" />
+          {exportCsv && (
             <button
-              className="btn btn-sm"
-              disabled={pagination.page <= 1}
-              onClick={() => pagination.onPageChange(pagination.page - 1)}
+              type="button"
+              className="btn btn-sm btn-ghost"
+              onClick={() => downloadCsv(typeof exportCsv === 'string' ? exportCsv : 'export.csv', columns, flat)}
+              title={tr('Export CSV')}
             >
-              {tr('Previous')}
+              <Download size={13} /> CSV
             </button>
-            <span className="page-num">
-              {tr('Page {0} of {1}', pagination.page, totalPages)}
-            </span>
-            <button
-              className="btn btn-sm"
-              disabled={pagination.page >= totalPages}
-              onClick={() => pagination.onPageChange(pagination.page + 1)}
-            >
-              {tr('Next')}
-            </button>
-            {pagination.onPerPageChange && (
-              <select
-                value={pagination.perPage}
-                onChange={(e) => pagination.onPerPageChange!(Number(e.target.value))}
-                className="per-page-select"
+          )}
+          {pagination && pagination.total > 0 && (
+            <div className="table-pages">
+              <button
+                className="btn btn-sm"
+                disabled={pagination.page <= 1}
+                onClick={() => pagination.onPageChange(pagination.page - 1)}
               >
-                <option value={10}>10 / {tr('page')}</option>
-                <option value={25}>25 / {tr('page')}</option>
-                <option value={50}>50 / {tr('page')}</option>
-                <option value={100}>100 / {tr('page')}</option>
-              </select>
-            )}
-          </div>
+                {tr('Previous')}
+              </button>
+              <span className="page-num">
+                {tr('Page {0} of {1}', pagination.page, totalPages)}
+              </span>
+              <button
+                className="btn btn-sm"
+                disabled={pagination.page >= totalPages}
+                onClick={() => pagination.onPageChange(pagination.page + 1)}
+              >
+                {tr('Next')}
+              </button>
+              {pagination.onPerPageChange && (
+                <select
+                  value={pagination.perPage}
+                  onChange={(e) => pagination.onPerPageChange!(Number(e.target.value))}
+                  className="per-page-select"
+                >
+                  <option value={10}>10 / {tr('page')}</option>
+                  <option value={25}>25 / {tr('page')}</option>
+                  <option value={50}>50 / {tr('page')}</option>
+                  <option value={100}>100 / {tr('page')}</option>
+                </select>
+              )}
+            </div>
+          )}
         </div>
-      )}
+      ) : null}
     </div>
   )
 }

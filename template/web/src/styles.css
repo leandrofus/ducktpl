@@ -736,3 +736,52 @@ a.rel-item:hover, button.rel-item:hover { background: var(--surface-2); cursor: 
 .live-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--idle); display: inline-block; }
 .live-dot.live { background: var(--ok); }
 .live-dot.offline { background: var(--bad); }
+
+/* Child rows / master-detail */
+.col-expand { width: 32px; text-align: center; padding: 0 4px !important; }
+.child-row { background: var(--surface-2); }
+.child-row-cell { padding: 12px 16px !important; border-bottom: 1px solid var(--border) !important; white-space: normal !important; }
+
+/* Kanban Board */
+.kanban-board { display: flex; gap: 16px; overflow-x: auto; padding: 4px 0 16px; min-height: 480px; }
+.kanban-col { flex: 1; min-width: 260px; max-width: 340px; background: var(--surface-2); border-radius: var(--radius); border: 1px solid var(--border); display: flex; flex-direction: column; }
+.kanban-col.drag-over { border-color: var(--accent); background: var(--accent-soft); }
+.kanban-col-head { padding: 10px 14px; display: flex; align-items: center; gap: 8px; border-bottom: 1px solid var(--border); font-weight: 500; font-size: 0.88rem; }
+.kanban-col-dot { width: 8px; height: 8px; border-radius: 50%; }
+.kanban-col-count { margin-left: auto; font-size: 0.75rem; color: var(--muted); background: var(--surface); padding: 2px 7px; border-radius: 10px; font-weight: 600; }
+.kanban-col-body { padding: 10px; display: flex; flex-direction: column; gap: 8px; flex: 1; overflow-y: auto; }
+.kanban-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; cursor: grab; box-shadow: var(--shadow-sm); transition: transform 0.1s, box-shadow 0.1s; }
+.kanban-card:hover { border-color: var(--border-strong); box-shadow: var(--shadow); }
+.kanban-card:active { cursor: grabbing; opacity: 0.7; }
+.kanban-col-empty { text-align: center; padding: 24px 8px; font-size: 0.8rem; color: var(--muted); }
+
+/* KPI Cards */
+.kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 18px; }
+.kpi-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; box-shadow: var(--shadow-sm); position: relative; overflow: hidden; }
+.kpi-card-head { display: flex; align-items: center; justify-content: space-between; font-size: 0.82rem; color: var(--muted); font-weight: 500; }
+.kpi-card-body { display: flex; align-items: baseline; gap: 8px; }
+.kpi-card-val { font-size: 1.6rem; font-weight: 700; color: var(--text); line-height: 1.1; }
+.kpi-card-delta { display: flex; align-items: center; gap: 3px; font-size: 0.75rem; font-weight: 600; padding: 1px 6px; border-radius: 4px; }
+.kpi-card-delta.delta-up { color: var(--ok); background: var(--ok-soft); }
+.kpi-card-delta.delta-down { color: var(--bad); background: var(--bad-soft); }
+.kpi-card-delta.delta-neutral { color: var(--muted); background: var(--surface-2); }
+.kpi-card-subtext { font-size: 0.75rem; color: var(--muted); }
+.kpi-sparkline { width: 100%; height: 24px; margin-top: 4px; color: var(--accent); }
+
+/* Notifications */
+.notifications-wrap { position: relative; }
+.notifications-trigger { position: relative; }
+.notifications-badge { position: absolute; top: -2px; right: -2px; background: var(--accent); color: white; font-size: 0.65rem; font-weight: 700; width: 15px; height: 15px; border-radius: 50%; display: flex; align-items: center; justify-content: center; }
+.notifications-popover { position: absolute; right: 0; top: calc(100% + 8px); width: 320px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-lg); z-index: 100; overflow: hidden; }
+.notifications-head { padding: 10px 14px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; }
+.notifications-head h5 { margin: 0; font-size: 0.88rem; font-weight: 600; }
+.notifications-actions { display: flex; gap: 4px; }
+.notifications-list { max-height: 340px; overflow-y: auto; }
+.notification-item { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 0.82rem; }
+.notification-item:last-child { border-bottom: none; }
+.notification-item.unread { background: var(--accent-soft); }
+.notification-title { font-weight: 600; color: var(--text); margin-bottom: 2px; }
+.notification-body { color: var(--muted); font-size: 0.78rem; margin-bottom: 3px; }
+.notification-time { color: var(--muted); font-size: 0.7rem; }
+.notifications-empty { padding: 24px 16px; text-align: center; color: var(--muted); font-size: 0.82rem; }
+

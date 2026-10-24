@@ -15,6 +15,13 @@ type Ev = { type: string; id?: string }
 
 let state: LiveState = 'connecting'
 const listeners = new Set<() => void>()
+const eventListeners = new Set<(ev: Ev) => void>()
+export function onLiveEvent(fn: (ev: Ev) => void) {
+  eventListeners.add(fn)
+  return () => {
+    eventListeners.delete(fn)
+  }
+}
 const setState = (s: LiveState) => {
   state = s
   listeners.forEach((l) => l())
@@ -29,6 +36,7 @@ const PATHS: Record<string, string> = {
 function onEvent(ev: Ev) {
   const kind = ev.type.split('.')[0] // note.changed → note
   invalidate(PATHS[kind] ?? `/${kind}s`)
+  eventListeners.forEach((fn) => fn(ev))
 }
 
 let started = false
