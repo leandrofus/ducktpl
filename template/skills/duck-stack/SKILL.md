@@ -78,3 +78,5 @@ Fields: `name:type[!][:modifier…]`. Types: string, text, int, float, bool, tim
 - Keep every `// ducktpl:<place>` anchor comment; the generator inserts there.
 - On `"status": "error"`, read `step` and `detail` (file and line), fix the cause, and run the same command again; the workspace was rolled back.
 - `dto --omit` on a field the UI shows fails the typecheck: edit the page first.
+- Resource names: a plural without a guessable singular needs `singular: <word>` under it in the schema (`media` → `singular: medium`; `ducktpl add … --singular`). `pages` is reserved (clashes with the list type): use `static_pages`.
+- A resource cannot `ref` itself yet: use a plain string field (`parent_slug:string`) and add the real column by hand.
