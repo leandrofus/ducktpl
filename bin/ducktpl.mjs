@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // ducktpl: generators for a project made with create-duck.
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { TYPES, TYPE_ALIASES, applyWithRollback, findProject, inspect, parseFields, plan, resourceNames } from '../lib/generate.mjs'
@@ -12,6 +12,7 @@ import { planRemove } from '../lib/remove.mjs'
 import { planAction } from '../lib/action.mjs'
 import { checkProject } from '../lib/doctor.mjs'
 import { listModules, activateModule } from '../lib/modules.mjs'
+import { planSeed } from '../lib/seed.mjs'
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'template')
 
@@ -35,6 +36,7 @@ const USAGE = `${bold('ducktpl')} — generators for create-duck projects
   ducktpl moddb renameColumn <table> <old_name> <new_name>
   ducktpl dto <resource> [fields...] [options]
   ducktpl module [list|add <name>] [options]
+  ducktpl seed [count] [options]
   ducktpl info [options]
   ducktpl check [options]
 
@@ -68,6 +70,7 @@ Commands:
   moddb           database schema migrations (addColumn, removeColumn, changeType, renameColumn)
   dto             mold response DTOs, prevent leaking internal fields, reduce output size
   module          list or activate optional features (audit, eventbus, s3, etc.)
+  seed            generate realistic mock data and seed.sql for instant testing
   info            inspect project features, available types and existing tables
   check           health check: verify anchors, migrations parity and compilation
 
@@ -306,6 +309,47 @@ function main() {
     }
 
     die(`unknown module subcommand "${sub}" (valid: list, add <name>)`, 'ERR_ARGS', opts.json)
+  }
+
+  // 2c. Seed Mock Data Command
+  if (cmd === 'seed') {
+    const countArg = rest[1]
+    const count = countArg ? parseInt(countArg, 10) : 5
+    let planned
+    try {
+      planned = planSeed(p, count, opts)
+    } catch (e) {
+      die(e.message, 'ERR_SEED_FAILED', opts.json)
+    }
+
+    if (opts.dry) {
+      if (opts.json) {
+        console.log(JSON.stringify({ status: 'ok', dryRun: true, ...planned }, null, 2))
+      } else {
+        console.log(bold(`Planned seed: ${planned.totalRecords} records across ${planned.tables.length} tables`))
+      }
+      return
+    }
+
+    writeFileSync(join(p.root, planned.file.path), planned.file.content, 'utf8')
+
+    if (opts.json) {
+      console.log(JSON.stringify({
+        status: 'ok',
+        action: 'seed',
+        count: planned.count,
+        tables: planned.tables,
+        totalRecords: planned.totalRecords,
+        file: planned.file.path,
+      }, null, 2))
+    } else {
+      console.log(green(`✓ Generated ${planned.totalRecords} mock records in ${planned.file.path}`))
+      for (const t of planned.tables) {
+        console.log(`  ${bold(t.table.padEnd(15))} ${dim(`${t.count} records`)}`)
+      }
+      console.log(dim(`\nTo load into SQLite:\n  sqlite3 <your-db>.db < ${planned.file.path}`))
+    }
+    return
   }
 
   // 3. Declarative Schema Apply Command

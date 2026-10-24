@@ -169,6 +169,13 @@ npx ducktpl dto notes title body --json
 npx ducktpl dto notes --omit pinned,internal_notes --json
 ```
 
+### 8. Mock Data Seeder (`seed`)
+Generate realistic mock data and relational `seed.sql` for immediate testing:
+
+```sh
+npx ducktpl seed 5 --json
+```
+
 ---
 
 ## Supported Field Types & Modifiers
@@ -192,6 +199,9 @@ npx ducktpl dto notes --omit pinned,internal_notes --json
 - `:unique` : Adds `UNIQUE` constraint in migrations (`email:string!:unique`)
 - `:index` : Creates index in SQLite and Postgres (`slug:string:index`)
 - `:default(<val>)` : Sets custom default value in schema (`status:string:default(pending)`)
+- `:enum(v1,v2,...)` : Enforces allowed values in Go validation, OpenAPI docs, and generates `<select>` dropdown + status badge in UI (`status:string!:enum(draft,published,archived)`)
+- `:min(<n>)` : Validates minimum string length or minimum number value (`title:string:min(3)`, `age:int:min(0)`)
+- `:max(<n>)` : Validates maximum string length or maximum number value (`score:int:max(100)`)
 
 ---
 
