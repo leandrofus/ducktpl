@@ -20,7 +20,9 @@ Then `cd my-app && make dev`.
 npx create-duck --install-skill         # once: copies the duck-stack skill to ~/.claude/skills
 ```
 
-Then ask for an app in plain words ("build me a dating app"). The skill makes
+Then start a session and type `/duck-stack build me a dating app`. The skill is
+manual on purpose (it never loads by itself, so it costs nothing in other
+projects); add a line to your `~/.claude/CLAUDE.md` to remember it. It makes
 the agent write a `duck.yaml` manifest and run `create-duck --manifest`, then
 grow it with `ducktpl … --json` instead of hand-writing every layer: the CRUD,
 migrations, contract and pages come from the generator, and the agent spends

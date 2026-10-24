@@ -1,6 +1,7 @@
 ---
 name: duck-stack
-description: Use whenever the user asks to create, build or start a new app, web app, backend, API, dashboard or full-stack project in any language (e.g. "crea una app de citas", "build me a CRM", "hazme un backend con login") — the first step is ALWAYS `npx create-duck --manifest duck.yaml --yes --json`. Also use inside an existing Duck Stack project (has `gateway/` + `web/` and `ducktpl:` anchors) to add resources, data models, endpoints, migrations, DTOs, actions, events or modules with `npx ducktpl ... --json` instead of hand-writing code. Go + SQLite/PostgreSQL + React/Preact, one binary.
+description: Start or extend a Duck Stack app (Go gateway + embedded React/Preact UI, SQLite/PostgreSQL) with create-duck and ducktpl instead of hand-writing every layer. Manual: run /duck-stack.
+disable-model-invocation: true
 ---
 
 # Duck Stack
