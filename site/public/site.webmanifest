@@ -1,0 +1,14 @@
+{
+  "name": "Duck Stack ducktpl",
+  "short_name": "ducktpl",
+  "icons": [
+    {
+      "src": "/ducktpl/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    }
+  ],
+  "theme_color": "#123E6B",
+  "background_color": "#0B1626",
+  "display": "standalone"
+}

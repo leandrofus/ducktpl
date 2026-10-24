@@ -1,0 +1,60 @@
+---
+import Icon from './Icon.astro'
+import { LANGS, langName, strings, type Lang } from '../i18n'
+import { REPO_URL, homePath } from '../paths'
+import { Image } from 'astro:assets'
+import ship from '../assets/ship.png'
+
+interface Props {
+  lang: Lang
+  alternates: Record<Lang, string>
+  onHero?: boolean
+}
+
+const { lang, alternates, onHero = false } = Astro.props
+const t = strings[lang]
+---
+<header class:list={['top', { 'on-hero': onHero }]}>
+  <nav class="wrap bar" aria-label={t.nav}>
+    <a class="brand" href={homePath(lang)}>
+      <Image src={ship} alt="Duck Stack" width={44} format="webp" />
+      <span>ducktpl</span>
+    </a>
+    <span class="grow"></span>
+    <a href={`${homePath(lang)}#quickstart`}>{t.ctaQuickstart}</a>
+    <a href={`${homePath(lang)}#benchmark`}>{t.benchmark}</a>
+    <a href={`${homePath(lang)}#layouts`}>{t.navLayouts}</a>
+    <a href={`${homePath(lang)}#commands`}>{t.docs}</a>
+    <a class="hide-sm" href={`${REPO_URL}/releases`} target="_blank" rel="noopener">{t.releases}</a>
+    <a href={REPO_URL} target="_blank" rel="noopener" aria-label="GitHub"><Icon name="github" /></a>
+    <details class="langmenu">
+      <summary>
+        <Icon name="globe" />
+        <span class="lang-name">{langName[lang]}</span><span class="lang-code">{lang.toUpperCase()}</span>
+        <span class="chev"><Icon name="chevron" /></span>
+      </summary>
+      <ul>
+        {LANGS.map((l) => (
+          <li>
+            <a href={alternates[l]} hreflang={l} lang={l} aria-current={l === lang ? 'true' : undefined}>
+              {langName[l]}{l === lang && <Icon name="check" />}
+            </a>
+          </li>
+        ))}
+      </ul>
+    </details>
+  </nav>
+</header>
+<script>
+  // Close the language menu on click outside or Escape
+  const menu = document.querySelector<HTMLDetailsElement>('.langmenu')
+  document.addEventListener('click', (e) => {
+    if (menu?.open && !menu.contains(e.target as Node)) menu.open = false
+  })
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape' && menu?.open) {
+      menu.open = false
+      menu.querySelector('summary')?.focus()
+    }
+  })
+</script>

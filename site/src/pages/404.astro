@@ -1,0 +1,22 @@
+---
+import Base from '../layouts/Base.astro'
+import Header from '../components/Header.astro'
+import Footer from '../components/Footer.astro'
+import { strings } from '../i18n'
+import { homePath } from '../paths'
+
+const alternates = {
+  en: homePath('en'),
+  es: homePath('es'),
+}
+const t = strings.en
+---
+<Base lang="en" title="Page Not Found — ducktpl" description="404 Page Not Found" alternates={alternates}>
+  <Header lang="en" alternates={alternates} />
+  <main class="wrap" style="text-align: center; padding: 120px 24px;">
+    <h1 style="font-size: 64px; font-weight: 800; color: var(--link); margin: 0 0 16px;">404</h1>
+    <p style="font-size: 20px; color: var(--muted); margin: 0 0 32px;">Page not found</p>
+    <a class="btn btn-primary" href={homePath('en')}>Return to Home</a>
+  </main>
+  <Footer lang="en" />
+</Base>

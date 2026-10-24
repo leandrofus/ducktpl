@@ -1,0 +1,26 @@
+---
+import { strings, type Lang } from '../i18n'
+import { REPO_URL, homePath } from '../paths'
+import { Image } from 'astro:assets'
+import ship from '../assets/ship.png'
+
+interface Props {
+  lang: Lang
+}
+const { lang } = Astro.props
+const t = strings[lang]
+---
+<footer class="foot">
+  <div class="wrap foot-in">
+    <a class="brand" href={homePath(lang)}>
+      <Image src={ship} alt="Duck Stack" width={38} format="webp" />
+      <span>ducktpl</span>
+    </a>
+    <span class="grow">{t.foot}</span>
+    <a href={`${homePath(lang)}#commands`}>{t.docs}</a>
+    <a href={`${REPO_URL}/releases`} target="_blank" rel="noopener">{t.releases}</a>
+    <a href={`${REPO_URL}/issues`} target="_blank" rel="noopener">{t.issues}</a>
+    <a href={REPO_URL} target="_blank" rel="noopener">GitHub</a>
+    <a href="https://discord.gg/H28S6chSy" target="_blank" rel="noopener">Discord</a>
+  </div>
+</footer>

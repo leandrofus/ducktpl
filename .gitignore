@@ -10,6 +10,6 @@ node_modules/
 *.db-shm
 *.db-wal
 *.audit-key
-/docs-site/node_modules/
-/docs-site/.astro/
-/docs-site/dist/
+/site/node_modules/
+/site/.astro/
+/site/dist/

@@ -1,0 +1,211 @@
+---
+import Header from './Header.astro'
+import Footer from './Footer.astro'
+import Icon from './Icon.astro'
+import { strings, type Lang } from '../i18n'
+import { REPO_URL, homePath } from '../paths'
+import { Image } from 'astro:assets'
+import ship from '../assets/ship.png'
+
+interface Props {
+  lang: Lang
+  alternates: Record<Lang, string>
+}
+
+const { lang, alternates } = Astro.props
+const t = strings[lang]
+---
+<div class="hero">
+  <Header lang={lang} alternates={alternates} onHero={true} />
+  <div class="wrap hero-in">
+    <div class="hero-content">
+      <div class="hero-badge">
+        <span class="hero-badge-dot"></span>
+        <span>{t.badge}</span>
+      </div>
+      <h1>
+        {lang === 'en' ? (
+          <>Deterministic Go + React code generator for <span class="highlight">AI Agents</span></>
+        ) : (
+          <>Generador de código Go + React determinista para <span class="highlight">Agentes de IA</span></>
+        )}
+      </h1>
+      <p class="lede">{t.lede}</p>
+      <div class="ctas">
+        <a class="btn btn-primary" href="#quickstart">{t.ctaQuickstart}</a>
+        <a class="btn btn-ghost" href="#benchmark">{t.ctaBenchmark}</a>
+        <a class="btn btn-ghost" href={REPO_URL} target="_blank" rel="noopener">{t.ctaGithub}</a>
+      </div>
+    </div>
+    <div class="hero-art">
+      <Image src={ship} alt="Duck Stack Ship" width={380} format="webp" />
+    </div>
+  </div>
+</div>
+
+<main class="wrap">
+  <!-- Stats Strip -->
+  <section class="stats" aria-label="Key Metrics">
+    {t.stats.map((s) => (
+      <div class="stat-card">
+        <div class="stat-val">{s.value}</div>
+        <div class="stat-lbl">{s.label}</div>
+        <div class="stat-sub">{s.sub}</div>
+      </div>
+    ))}
+  </section>
+
+  <!-- Quick Start -->
+  <section class="section" id="quickstart">
+    <div class="section-head">
+      <h2>{t.quickstartTitle}</h2>
+      <p>{t.quickstartSub}</p>
+    </div>
+    <div class="panel">
+      {t.quickstartTabs.map((tab, idx) => (
+        <div style={idx > 0 ? 'margin-top: 24px;' : ''}>
+          <div style="font-weight: 700; font-size: 15px; margin-bottom: 4px; color: var(--link);">
+            {idx + 1}. {tab.title}
+          </div>
+          <div class="code-block">
+            <pre><code>{tab.code}</code></pre>
+          </div>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Token Benchmark -->
+  <section class="section" id="benchmark">
+    <div class="section-head">
+      <h2>{t.benchmarkTitle}</h2>
+      <p>{t.benchmarkSub}</p>
+    </div>
+    <div class="table-wrap">
+      <table class="bench">
+        <thead>
+          <tr>
+            {t.benchmarkCols.map((c) => <th>{c}</th>)}
+          </tr>
+        </thead>
+        <tbody>
+          {t.benchmarkRows.map((r) => (
+            <tr>
+              <td><strong>{r[0]}</strong></td>
+              <td>{r[1]}</td>
+              <td>{r[2]}</td>
+              <td>{r[3]}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Features Grid -->
+  <section class="section" id="features">
+    <div class="section-head">
+      <h2>{t.featuresTitle}</h2>
+    </div>
+    <div class="features-grid">
+      {t.features.map((f) => (
+        <div class="feature-box">
+          <div class="feature-icon-wrap">
+            <Icon name={f.icon} />
+          </div>
+          <h3>{f.title}</h3>
+          <p>{f.desc}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- UI Layouts -->
+  <section class="section" id="layouts">
+    <div class="section-head">
+      <h2>{t.layoutsTitle}</h2>
+      <p>{t.layoutsSub}</p>
+    </div>
+    <div class="layouts-grid">
+      {t.layouts.map((l) => (
+        <div class="layout-card">
+          <div class="layout-header">
+            <h3>{l.name.toUpperCase()}</h3>
+            <span class="layout-badge">{l.badge}</span>
+          </div>
+          <p>{l.desc}</p>
+        </div>
+      ))}
+    </div>
+  </section>
+
+  <!-- Declarative YAML Blueprint -->
+  <section class="section" id="blueprint">
+    <div class="section-head">
+      <h2>{t.blueprintTitle}</h2>
+      <p>{t.blueprintSub}</p>
+    </div>
+    <div class="panel">
+      <div class="code-block">
+<pre><code># duck.yaml
+name: datingapp
+storage: sqlite
+models:
+  profiles:
+    ui: cards
+    fields:
+      - display_name:string!
+      - bio:text
+      - avatar_url:string
+      - verified:bool
+    actions:
+      - boost
+
+  messages:
+    ui: chat
+    fields:
+      - profile:ref:profiles!
+      - content:text!
+
+pipelines:
+  - on: swipes.create
+    name: onReciprocalSwipe
+    preset: match_reciprocal</code></pre>
+      </div>
+      <div style="margin-top: 16px;">
+        <div class="code-block">
+          <pre><code># Compile blueprint into Go + Preact codebase in 1.8s
+npx ducktpl apply duck.yaml</code></pre>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Agent CLI Commands -->
+  <section class="section" id="commands">
+    <div class="section-head">
+      <h2>{t.commandsTitle}</h2>
+      <p>{t.commandsSub}</p>
+    </div>
+    <div class="table-wrap">
+      <table class="cmds">
+        <thead>
+          <tr>
+            <th style="width: 42%;">{lang === 'en' ? 'Command' : 'Comando'}</th>
+            <th>{lang === 'en' ? 'Description' : 'Descripción'}</th>
+          </tr>
+        </thead>
+        <tbody>
+          {t.commands.map((c) => (
+            <tr>
+              <td><code>{c.cmd}</code></td>
+              <td>{c.desc}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<Footer lang={lang} />

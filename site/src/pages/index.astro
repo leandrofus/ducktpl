@@ -1,0 +1,15 @@
+---
+import Base from '../layouts/Base.astro'
+import Home from '../components/Home.astro'
+import { strings } from '../i18n'
+import { homePath } from '../paths'
+
+const alternates = {
+  en: homePath('en'),
+  es: homePath('es'),
+}
+const t = strings.en
+---
+<Base lang="en" title={t.title} description={t.description} alternates={alternates}>
+  <Home lang="en" alternates={alternates} />
+</Base>
