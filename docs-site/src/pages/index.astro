@@ -1,0 +1,113 @@
+---
+import Base from '../layouts/Base.astro'
+const base = import.meta.env.BASE_URL.replace(/\/$/, '')
+const repo = 'https://github.com/leandrofus/ducktpl'
+---
+<Base title="Duck Stack (ducktpl) — Agentic Full-Stack Application Engine" description="Deterministic full-stack generator for AI Agents & Engineers. Go + SQLite/Postgres + Preact/React. 780x leverage with 0% boilerplate hallucination.">
+  <header class="hero">
+    <div class="wrap">
+      <div style="display: flex; align-items: center; gap: 14px;">
+        <span style="font-size: 42px;">🦆</span>
+        <span style="background: var(--duck); color: var(--navy); font-weight: 800; font-size: 13px; padding: 4px 10px; border-radius: 99px; text-transform: uppercase; letter-spacing: 0.08em;">v0.1.0 Ready</span>
+      </div>
+      <h1>Duck Stack <span style="color: var(--duck);">ducktpl</span></h1>
+      <p>The deterministic full-stack application engine for AI Agents and Human Engineers. Go gateway, embedded Preact/React, SQLite/PostgreSQL, OpenAPI contracts, and EDA event pipelines.</p>
+      <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <a class="btn" href="#quickstart">Get Started</a>
+        <a class="btn" style="background: rgba(255,255,255,0.12); color: #fff; border: 1px solid rgba(255,255,255,0.2);" href={repo} target="_blank" rel="noopener">GitHub Repository</a>
+      </div>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); margin-top: 32px;">
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 32px; font-weight: 800; color: var(--link);">787x</div>
+        <p style="font-size: 13px; margin-top: 4px;">Agentic Token Leverage</p>
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 32px; font-weight: 800; color: #10b981;">99.87%</div>
+        <p style="font-size: 13px; margin-top: 4px;">Boilerplate Elimination</p>
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 32px; font-weight: 800; color: var(--navy);">0.3s</div>
+        <p style="font-size: 13px; margin-top: 4px;">TypeScript & Go Hot Build</p>
+      </div>
+      <div class="card" style="text-align: center;">
+        <div style="font-size: 32px; font-weight: 800; color: var(--duck);">1 File</div>
+        <p style="font-size: 13px; margin-top: 4px;">Single Static Binary Distribution</p>
+      </div>
+    </div>
+
+    <div class="grid">
+      <div class="card">
+        <h3>🤖 Built for AI Agents</h3>
+        <p>100% deterministic CLI with <code>--json</code>. Eliminates agent hallucinations, syntax errors, and missing schema migrations.</p>
+      </div>
+      <div class="card">
+        <h3>🎨 Declarative UI Layouts</h3>
+        <p>Go beyond CRUD tables. Scaffold <code>cards</code>, <code>feed</code>, and <code>chat</code> interfaces straight from your blueprint YAML manifest.</p>
+      </div>
+      <div class="card">
+        <h3>⚡ Event-Driven (EDA)</h3>
+        <p>Typed event observers, reactive domain pipelines, background workers, and WebSocket broadcasts out of the box.</p>
+      </div>
+      <div class="card">
+        <h3>🛡️ AST Boundary Engine</h3>
+        <p>Safe incremental editing. Never destroys developer code or manually customized handlers when adding new resources or columns.</p>
+      </div>
+      <div class="card">
+        <h3>📦 Single Binary Delivery</h3>
+        <p>The Go gateway embeds the compiled frontend and migrates SQLite/Postgres on boot. Zero Docker needed for development.</p>
+      </div>
+      <div class="card">
+        <h3>📜 Living OpenAPI Contract</h3>
+        <p>The OpenAPI 3.0 spec is generated from code annotations, and TypeScript frontend types are derived straight from the spec.</p>
+      </div>
+    </div>
+
+    <h2 id="quickstart">Quick Start</h2>
+    <p>Scaffold a full-stack project in seconds:</p>
+    <pre><code># 1. Create a project
+npx create-duck myapp -y --web preact --rls singleTenant --with eventbus,ws
+
+# 2. Add an interactive resource with visual cards
+cd myapp
+npx ducktpl add profiles 'name:string!' 'bio:text' 'avatar_url:string' 'status:string!:enum(online,away)' --ui cards
+
+# 3. Add custom RPC action
+npx ducktpl addAction profiles boost
+
+# 4. Subscribe to domain events
+npx ducktpl on profiles.create notifyAdmin --preset email
+
+# 5. Run development server (Go backend + Vite hot-reload)
+make dev</code></pre>
+
+    <h2>Declarative YAML Blueprint</h2>
+    <p>Define your entire multi-resource architecture in a single blueprint file:</p>
+    <pre><code># app.yaml
+resources:
+  profiles:
+    ui: cards
+    fields:
+      - display_name:string!
+      - avatar_url:string
+      - bio:text
+  messages:
+    ui: chat
+    fields:
+      - profile:ref:profiles!
+      - content:text!
+
+pipelines:
+  - on: messages.create
+    name: onNewMessage
+    preset: log</code></pre>
+    <pre><code>npx ducktpl apply app.yaml</code></pre>
+  </main>
+
+  <footer class="wrap">
+    Duck Stack · Apache-2.0 License · Maintained on <a href={repo} target="_blank" rel="noopener">GitHub</a>
+  </footer>
+</Base>
