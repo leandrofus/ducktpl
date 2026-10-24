@@ -4,6 +4,7 @@
 /gateway/internal/server/ui/dist/*
 !/gateway/internal/server/ui/dist/.gitkeep
 node_modules/
+/.ducktpl/
 *.tsbuildinfo
 # duck:if site
 /site/dist/

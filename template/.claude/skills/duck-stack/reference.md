@@ -41,6 +41,8 @@ With the auth module a resource carries `perms: { read, write }` (`<table>.read`
 
 Every resource gets `web/src/resources/<table>.ts` (url, labels, fields, layout). `ui/resource/` (`ResourcePage`, `ResourceDialog`, one component per layout) draws from it, so editing a field there is enough: no JSX to patch. List state (page, search) lives in `lib/list.ts`, a zustand-style store from `lib/create.ts`.
 
+**An admin panel is not an app.** The layouts above are views over a resource, good for a back office. A booking system, a CRM or a CMS needs views of its own (calendar with availability, pipeline board, customer page, editor, public site). For those, generate the resource with `--no-ui` and build the view on `ResourceDef` and `ui/resource/` (`CalendarView`, `ResourceDialog`, `useResource`), register it in `App.tsx` (`NAV`, `CREATE`, `Shell`'s switch), and keep rules that must always hold (no double booking, a status that only moves forward) in the Go handler. Which views exist and which are planned: `docs/domain-views.md` in the ducktpl repo.
+
 ## EventBus (modules `eventbus`, `ws`, `sse`)
 
 In-process, non-blocking pub/sub in `gateway/internal/events/events.go`; across gateways with `redis`.

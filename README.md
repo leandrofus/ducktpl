@@ -57,6 +57,8 @@ and form, the nav entry, live refresh — and runs `make generate`. It reads
 which modules the project has, and inserts at the `ducktpl:<place>` anchors.
 `--dry-run` lists the changes first.
 
+`ducktpl add` gives you the data side and an admin panel (table, cards, feed, chat, calendar). For an app people use (booking, CRM, CMS) see [Domain views](docs/domain-views.md): how resources and views fit, what exists, what is planned.
+
 ## What you always get
 
 - **Gateway** (`gateway/`): `net/http` routes with their access rule in one

@@ -58,6 +58,8 @@ nav, refresco en vivo) y corre `make generate`. Detecta los módulos del
 proyecto e inserta en las anclas `ducktpl:<lugar>`. `--dry-run` muestra antes
 qué cambia.
 
+`ducktpl add` entrega el lado de datos y un panel de administración (tabla, tarjetas, feed, chat, calendario). Para una app que la gente usa (turnos, CRM, CMS) mira [Domain views](docs/domain-views.md): cómo encajan recursos y vistas, qué existe y qué viene (en inglés).
+
 ## Siempre
 
 - Gateway con rutas y su regla de acceso en un solo lugar, helpers JSON, CSRF

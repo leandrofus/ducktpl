@@ -14,6 +14,7 @@ import { checkProject } from '../lib/doctor.mjs'
 import { listModules, activateModule } from '../lib/modules.mjs'
 import { planSeed } from '../lib/seed.mjs'
 import { planObserver } from '../lib/observer.mjs'
+import { logFile, readLog, startRunLog } from '../lib/runlog.mjs'
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'template')
 
@@ -22,6 +23,8 @@ const c = (code) => (s) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s)
 const bold = c(1), dim = c(2), green = c(32), yellow = c(33), red = c(31)
 
 const isJsonGlobal = process.argv.includes('--json')
+const VERSION = JSON.parse(readFileSync(join(TEMPLATE, '..', 'package.json'), 'utf8')).version
+const runlog = startRunLog({ argv: process.argv.slice(2), version: VERSION })
 
 const USAGE = `${bold('ducktpl')} — generators for create-duck projects
 
@@ -87,6 +90,7 @@ Examples:
   ducktpl apply schema.yaml --json
   ducktpl remove tasks --json
   ducktpl check --json
+  ducktpl log [--errors] [--last N] [--json]   earlier runs: input, output, errors (.ducktpl/log.jsonl; --no-log or DUCKTPL_LOG=0 to skip)
 `
 
 function die(msg, code = 'ERR_DUCKTPL', isJson = isJsonGlobal) {
@@ -192,6 +196,9 @@ function main() {
     else if (a === '--force') opts.force = true
     else if (a === '--json') opts.json = true
     else if (a === '--no-rollback') opts.noRollback = true
+    else if (a === '--no-log') continue
+    else if (a === '--errors') opts.errors = true
+    else if (a === '--last') opts.last = Number(argv[++i]) || die('--last needs a number', 'ERR_ARGS', opts.json)
     else if (a === '--singular') opts.singular = argv[++i] ?? die('--singular needs a value', 'ERR_ARGS', opts.json)
     else if (a === '--only') opts.only = argv[++i] ?? die('--only needs a value', 'ERR_ARGS', opts.json)
     else if (a === '--omit') opts.omit = argv[++i] ?? die('--omit needs a value', 'ERR_ARGS', opts.json)
@@ -219,6 +226,26 @@ function main() {
     p = inspect(findProject(process.cwd()))
   } catch (e) {
     die(e.message, 'ERR_NOT_PROJECT', opts.json)
+  }
+  runlog.setRoot(p.root)
+
+  // 0. The log of earlier runs
+  if (cmd === 'log') {
+    const rows = readLog(p.root, { last: opts.last ?? 20, errors: opts.errors })
+    if (opts.json) {
+      console.log(JSON.stringify({ status: 'ok', action: 'log', file: logFile(p.root), runs: rows }, null, 2))
+    } else if (!rows.length) {
+      console.log(dim(`no runs in ${logFile(p.root)}`))
+    } else {
+      for (const r of rows) {
+        const when = r.ts.slice(0, 19).replace('T', ' ')
+        console.log(`${dim(when)}  ${r.status === 'ok' ? green('ok   ') : red('error')}  ${dim(String(r.durationMs).padStart(6) + 'ms')}  ${r.argv.join(' ')}`)
+        if (r.error) console.log(`    ${red('✗')} ${r.error.message}${r.error.step ? dim(` (${r.error.step})`) : ''}`)
+        for (const ch of (r.changes ?? []).slice(0, 8)) console.log(`    ${dim(ch.op.padEnd(13))} ${ch.path}`)
+      }
+      console.log(dim(`\n${logFile(p.root)}  (--errors, --last N, --json)`))
+    }
+    return
   }
 
   // 1. Info / Inspect Command
