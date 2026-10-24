@@ -1,6 +1,6 @@
 ---
 name: duck-stack
-description: Scaffolds and manages full-stack Go + SQLite/PostgreSQL + Preact/React applications using create-duck and ducktpl. Automates database migrations, sqlc queries, Go handlers with OpenAPI annotations, permissions, and UI pages with deterministic CLI commands and zero boilerplate.
+description: Scaffolds and manages full-stack Go + SQLite/PostgreSQL + Preact/React applications using create-duck and ducktpl. Automates database migrations, sqlc queries, Go handlers with OpenAPI annotations, permissions, UI pages, custom RPC actions, and declarative schemas with deterministic CLI commands and zero boilerplate.
 ---
 
 # Duck Stack Agentic Skill
@@ -11,7 +11,7 @@ This skill guides AI agents in scaffolding, extending, and modifying full-stack 
 
 1. **NEVER manually write CRUD boilerplate from scratch.**
    - Do NOT hand-craft twin SQLite/PostgreSQL migrations, `sqlc` queries, Go HTTP handlers, OpenAPI YAML comments, and Preact pages when adding a resource.
-   - Use `npx ducktpl add <resource> <fields...> --json` instead.
+   - Use `npx ducktpl add <resource> <fields...> --json` or `npx ducktpl apply schema.yaml --json` instead.
 2. **ALWAYS inspect before guessing.**
    - Run `npx ducktpl info --json` to detect active features (`auth`, `rbac`, `multitenant`, `live`), existing database tables, and valid types.
 3. **ALWAYS use `--json` for tool calls.**
@@ -21,23 +21,29 @@ This skill guides AI agents in scaffolding, extending, and modifying full-stack 
    - Never remove or overwrite these comment lines when editing code.
 5. **Shape DTOs to prevent data leaks.**
    - Run `npx ducktpl dto <resource> --omit <fields...> --json` to hide internal or sensitive database columns from API responses.
+6. **Verify Project Health.**
+   - Run `npx ducktpl check --json` after complex changes to verify anchor integrity, migration parity, and Go/TS compilation.
 
 ---
 
 ## Command Reference
 
-### 1. Project Introspection
-Inspect project modules, existing tables, anchors, and supported types:
+### 1. Project Introspection & Health Check
 ```sh
+# Inspect project features, tables, types, and anchors
 npx ducktpl info --json
+
+# Verify project sanity (anchors, migrations parity, Go vet)
+npx ducktpl check --json
 ```
 
 ### 2. Scaffold Resources
 
-#### Standard CRUD Resource
+#### Standard CRUD Resource (with Modifiers)
 Generates migrations (SQLite + PG), sqlc query, Go handler + OpenAPI, route registration, auth permissions, HTTP test, and UI DataTable/Form:
 ```sh
-npx ducktpl add tasks title:string! notes:text done:bool priority:int --json
+npx ducktpl add tasks title:string! notes:text done:bool priority:int:default(0) --json
+npx ducktpl add users email:string!:unique slug:string:index --json
 ```
 
 #### Container Scope & Scoped Resources
@@ -56,7 +62,42 @@ Link to an existing table. Automatically handles foreign keys, indexes, cascades
 npx ducktpl add comments body:text! task:ref:tasks! --json
 ```
 
-### 3. Database Schema Modifications (`moddb`)
+### 3. Declarative Schema Batch (`apply`)
+Scaffold multiple interrelated resources in a single tool call from a YAML or JSON schema. Handles topological ordering of references automatically:
+
+```sh
+npx ducktpl apply schema.yaml --json
+```
+
+Example `schema.yaml`:
+```yaml
+resources:
+  authors:
+    fields:
+      - name:string!
+      - email:string!:unique
+  articles:
+    fields:
+      - title:string!
+      - author:ref:authors!
+      - slug:string:index
+      - status:string:default(draft)
+```
+
+### 4. Custom RPC / Actions (`addAction`)
+Generate custom state-changing or command endpoints (e.g. `POST /api/v1/tasks/{id}/complete`):
+```sh
+npx ducktpl addAction tasks complete --json
+npx ducktpl addAction invoices send --json
+```
+
+### 5. Safe Resource Removal (`remove`)
+Safely remove a scaffolded resource, deleting its files and cleaning up its lines in routes, auth, rbac, and web navigation:
+```sh
+npx ducktpl remove tasks --json
+```
+
+### 6. Database Schema Modifications (`moddb`)
 Safely alters SQLite and PostgreSQL schemas, sqlc queries, and Go handlers:
 
 ```sh
@@ -73,10 +114,7 @@ npx ducktpl moddb changeType tasks priority:int! --force --json
 npx ducktpl moddb renameColumn tasks title heading --json
 ```
 
-> [!NOTE]
-> `moddb` automatically detects if a frontend page (`web/src/pages/<resource>.tsx`) exists and provides clear notes on what UI elements to sync.
-
-### 4. DTO Shaping & Leak Prevention (`dto`)
+### 7. DTO Shaping & Leak Prevention (`dto`)
 Inspect and mold API response schemas without breaking database models:
 
 ```sh
@@ -108,8 +146,11 @@ npx ducktpl dto notes --omit pinned,internal_notes --json
 | `bytes` | `BLOB` | `BYTEA` | `[]byte` | `string` | `data:bytes` |
 | `ref:<tbl>` | `TEXT REFERENCES ...` | `TEXT REFERENCES ...` | `string` | `string` | `project:ref:projects!` |
 
-- Append `!` to make the column required (`title:string!`).
-- Common aliases are supported: `boolean` -> `bool`, `integer`/`bigint` -> `int`, `varchar` -> `string`, `jsonb` -> `json`, `datetime`/`timestamp` -> `time`.
+### Modifiers
+- `!` : Required column (`title:string!`)
+- `:unique` : Adds `UNIQUE` constraint in migrations (`email:string!:unique`)
+- `:index` : Creates index in SQLite and Postgres (`slug:string:index`)
+- `:default(<val>)` : Sets custom default value in schema (`status:string:default(pending)`)
 
 ---
 
@@ -121,8 +162,5 @@ npx ducktpl dto notes --omit pinned,internal_notes --json
 - If you need to debug a build failure without rolling back, pass `--no-rollback`.
 
 ### Recovering from Broken Anchors
-If an anchor was accidentally deleted, `ducktpl` will report the exact file and missing anchor:
-```
-gateway/internal/server/server.go: anchor "ducktpl:routes" not found. Re-add "// ducktpl:routes" or "# ducktpl:routes" where new entries should be injected.
-```
-Simply restore `// ducktpl:<anchor>` at the appropriate location and re-run the command.
+If an anchor was accidentally deleted, `ducktpl check --json` will report the exact file and missing anchor.
+Simply restore `// ducktpl:<anchor>` at the reported location and re-run.

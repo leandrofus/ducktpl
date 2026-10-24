@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 // ducktpl: generators for a project made with create-duck.
-//
-//   npx ducktpl add tasks title:string! done:bool priority:int
-//   npx ducktpl addScope projects name:string!
-//   npx ducktpl addToScope projects tasks title:string!
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, readFileSync } from 'node:fs'
+import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import { join } from 'node:path'
 import { TYPES, TYPE_ALIASES, applyWithRollback, findProject, inspect, parseFields, plan, resourceNames } from '../lib/generate.mjs'
 import { planModdb } from '../lib/moddb.mjs'
 import { planDTO } from '../lib/dto.mjs'
+import { planApply } from '../lib/apply.mjs'
+import { planRemove } from '../lib/remove.mjs'
+import { planAction } from '../lib/action.mjs'
+import { checkProject } from '../lib/doctor.mjs'
 
 const tty = process.stdout.isTTY
 const c = (code) => (s) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s)
@@ -19,26 +19,27 @@ const isJsonGlobal = process.argv.includes('--json')
 
 const USAGE = `${bold('ducktpl')} — generators for create-duck projects
 
-  ducktpl add <resource> <field:type[!]>... [options]
+  ducktpl add <resource> <field:type[!][:modifiers]>... [options]
   ducktpl addScope <resource> <field:type[!]>...
   ducktpl addToScope <scope> <resource> <field:type[!]>...
-  ducktpl --addRoute <resource> <field:type[!]>...
+  ducktpl addAction <resource> <action>
+  ducktpl apply <schema-file>
+  ducktpl remove <resource>
   ducktpl moddb addColumn <table> <field:type[!]>
   ducktpl moddb removeColumn <table> <column>
   ducktpl moddb changeType <table> <column:type[!]> --force
   ducktpl moddb renameColumn <table> <old_name> <new_name>
   ducktpl dto <resource> [fields...] [options]
   ducktpl info [options]
+  ducktpl check [options]
 
-Adds a resource through every layer: migrations (SQLite and PostgreSQL),
-queries, handlers with their OpenAPI blocks, routes, permissions (auth,
-rbac), an HTTP test, a web page and its nav entry; modifies database schema
-safely (moddb); or molds response DTOs to avoid data leaks and minimize payloads (dto).
+Adds resources, RPC actions, alters schemas safely, molds DTOs, or applies batch schemas.
 
   <resource>      plural, lowercase: tasks, work_items
   <scope>         existing scope resource: projects
   <table>         existing table name: notes, tasks
   field:type      types: ${Object.keys(TYPES).join(', ')}; ref: <name>:ref:<resource>; a trailing ! makes it required
+  modifiers       :unique, :index, :default(<value>)
   --singular x    when the singular is not the plural minus "s" (people → --singular person)
   --force         required for destructive schema changes like changeType
   --only f1,f2    only include specified fields in the DTO
@@ -53,25 +54,24 @@ safely (moddb); or molds response DTOs to avoid data leaks and minimize payloads
   --no-generate   skip make generate
 
 Commands:
-  add             regular CRUD resource
+  add             regular CRUD resource (supports :unique, :index, :default(...))
   addScope        container resource that other resources can live in
   addToScope      resource that belongs to a scope (nested list, scope picker)
+  addAction       generate custom RPC/action endpoint for a resource
+  apply           declarative batch schema scaffolding from YAML or JSON file
+  remove          safely remove a scaffolded resource and clean up code
   moddb           database schema migrations (addColumn, removeColumn, changeType, renameColumn)
   dto             mold response DTOs, prevent leaking internal fields, reduce output size
   info            inspect project features, available types and existing tables
+  check           health check: verify anchors, migrations parity and compilation
 
 Examples:
-  ducktpl add tasks title:string! notes:text done:bool priority:int
-  ducktpl addScope projects name:string!
-  ducktpl addToScope projects tasks title:string!
-  ducktpl moddb addColumn notes status:string!
-  ducktpl moddb removeColumn notes pinned
-  ducktpl moddb changeType notes priority:int! --force
-  ducktpl moddb renameColumn notes title heading
-  ducktpl dto notes                           # inspect current DTO fields vs table columns
-  ducktpl dto notes title body                # only expose title and body in DTO (hides pinned)
-  ducktpl dto notes --omit pinned             # omit pinned from DTO response
-  ducktpl info --json                         # inspect project features for agents
+  ducktpl add tasks title:string! notes:text done:bool priority:int:default(0)
+  ducktpl add users email:string!:unique slug:string:index
+  ducktpl addAction tasks complete
+  ducktpl apply schema.yaml --json
+  ducktpl remove tasks --json
+  ducktpl check --json
 `
 
 function die(msg, code = 'ERR_DUCKTPL', isJson = isJsonGlobal) {
@@ -83,6 +83,49 @@ function die(msg, code = 'ERR_DUCKTPL', isJson = isJsonGlobal) {
   process.exit(1)
 }
 
+function runGeneration(p, opts, rollbackFn) {
+  if (!opts.generate) return true
+
+  const run = (label, runCmd, args, cwd) => {
+    const r = spawnSync(runCmd, args, { cwd, encoding: 'utf8' })
+    if (r.status === 0) {
+      if (!opts.json) console.log(green('✓ ') + label)
+      return true
+    }
+    const err = (r.stderr || r.stdout || '').trim().split('\n').slice(-15).join('\n')
+    if (!opts.json) {
+      console.log(yellow('! ') + label + yellow(' failed:') + '\n' + err)
+    }
+    return false
+  }
+
+  const gw = join(p.root, 'gateway')
+  const ok =
+    run('sqlc generate', 'make', ['generate'], gw) &&
+    run('gofmt', 'gofmt', ['-w', 'internal'], gw) &&
+    run('OpenAPI spec', 'go', ['run', './cmd/openapi-gen'], gw) &&
+    run('UI types', 'bun', ['run', 'gen-api'], join(p.root, 'web'))
+
+  if (!ok) {
+    if (!opts.noRollback && rollbackFn) {
+      rollbackFn()
+      if (opts.json) {
+        console.error(JSON.stringify({
+          status: 'error',
+          error: 'Post-generation build failed (sqlc, gofmt, openapi-gen, or gen-api). Workspace was automatically rolled back.',
+          rolledBack: true,
+        }))
+      } else {
+        console.error(red('✗ Generation failed. Workspace was rolled back to maintain a clean state.'))
+      }
+      process.exit(1)
+    }
+    process.exitCode = 1
+    return false
+  }
+  return true
+}
+
 function main() {
   const argv = process.argv.slice(2)
   if (!argv.length || argv.includes('-h') || argv.includes('--help')) {
@@ -90,7 +133,7 @@ function main() {
       console.log(JSON.stringify({
         status: 'ok',
         usage: USAGE,
-        commands: ['add', 'addScope', 'addToScope', 'moddb', 'dto', 'info'],
+        commands: ['add', 'addScope', 'addToScope', 'addAction', 'apply', 'remove', 'moddb', 'dto', 'info', 'check'],
         types: Object.keys(TYPES),
       }, null, 2))
       return
@@ -139,15 +182,15 @@ function main() {
 
   let cmd = rest[0]
 
-  // Introspection command: ducktpl info / ducktpl inspect
-  if (cmd === 'info' || cmd === 'inspect') {
-    let p
-    try {
-      p = inspect(findProject(process.cwd()))
-    } catch (e) {
-      die(e.message, 'ERR_NOT_PROJECT', opts.json)
-    }
+  let p
+  try {
+    p = inspect(findProject(process.cwd()))
+  } catch (e) {
+    die(e.message, 'ERR_NOT_PROJECT', opts.json)
+  }
 
+  // 1. Info / Inspect Command
+  if (cmd === 'info' || cmd === 'inspect') {
     const sqliteDir = join(p.root, 'gateway/internal/store/migrations/sqlite')
     const tables = []
     if (existsSync(sqliteDir)) {
@@ -202,6 +245,187 @@ function main() {
     return
   }
 
+  // 2. Health Check / Doctor Command
+  if (cmd === 'check' || cmd === 'doctor') {
+    const res = checkProject(p, opts)
+    if (opts.json) {
+      console.log(JSON.stringify({ status: res.healthy ? 'ok' : 'error', ...res }, null, 2))
+    } else {
+      console.log(bold('Health Check for DuckApp:'))
+      for (const ok of res.passed) console.log(`  ${green('✓')} ${ok}`)
+      for (const err of res.issues) console.log(`  ${red('✗')} ${err.message}`)
+      console.log(res.healthy ? `\n${green('All checks passed.')}` : `\n${red('Issues detected.')}`)
+    }
+    if (!res.healthy) process.exitCode = 1
+    return
+  }
+
+  // 3. Declarative Schema Apply Command
+  if (cmd === 'apply') {
+    const schemaFile = rest[1]
+    if (!schemaFile) die('which schema file? e.g. ducktpl apply schema.yaml', 'ERR_ARGS', opts.json)
+    let planned
+    try {
+      planned = planApply(p, schemaFile, opts)
+    } catch (e) {
+      die(e.message, 'ERR_APPLY_FAILED', opts.json)
+    }
+
+    if (opts.dry) {
+      if (opts.json) {
+        console.log(JSON.stringify({
+          status: 'ok',
+          dryRun: true,
+          action: 'apply',
+          resources: planned.resources,
+          files: planned.files.map((f) => ({ path: f.path, action: f.created ? 'create' : 'update' })),
+          notes: planned.notes,
+        }, null, 2))
+      } else {
+        console.log(`${bold('Applying schema')} ${dim(`(${planned.resources.length} resources)`)}`)
+        for (const f of planned.files) console.log(`  ${f.created ? green('create') : yellow('update')} ${f.path}`)
+        console.log(dim('\n--dry-run: nothing written'))
+      }
+      return
+    }
+
+    const res = applyWithRollback(p.root, planned.files)
+    const generatedOk = runGeneration(p, opts, () => res.rollback())
+
+    if (opts.json) {
+      console.log(JSON.stringify({
+        status: 'ok',
+        action: 'apply',
+        resources: planned.resources,
+        files: planned.files.map((f) => ({ path: f.path, action: f.created ? 'create' : 'update' })),
+        notes: planned.notes,
+        generated: generatedOk,
+      }, null, 2))
+    } else {
+      console.log(`\n${green('Done.')} Applied ${planned.resources.length} resources successfully.`)
+    }
+    return
+  }
+
+  // 4. Remove / Destroy Resource Command
+  if (cmd === 'remove' || cmd === 'destroy') {
+    const targetResource = rest[1]
+    if (!targetResource) die('which resource to remove? e.g. ducktpl remove tasks', 'ERR_ARGS', opts.json)
+    let planned
+    try {
+      planned = planRemove(p, targetResource, opts)
+    } catch (e) {
+      die(e.message, 'ERR_REMOVE_FAILED', opts.json)
+    }
+
+    if (opts.dry) {
+      if (opts.json) {
+        console.log(JSON.stringify({
+          status: 'ok',
+          dryRun: true,
+          action: 'remove',
+          resource: targetResource,
+          filesToDelete: planned.filesToDelete,
+          filesToPatch: planned.filesToPatch.map((f) => f.path),
+          notes: planned.notes,
+        }, null, 2))
+      } else {
+        console.log(`${bold('Removing resource')} ${targetResource}`)
+        for (const f of planned.filesToDelete) console.log(`  ${red('delete')} ${f}`)
+        for (const f of planned.filesToPatch) console.log(`  ${yellow('patch')} ${f.path}`)
+        console.log(dim('\n--dry-run: nothing changed'))
+      }
+      return
+    }
+
+    // Backup files to patch
+    const backups = []
+    for (const f of planned.filesToPatch) {
+      const full = join(p.root, f.path)
+      if (existsSync(full)) backups.push({ path: full, content: readFileSync(full, 'utf8') })
+    }
+
+    // Execute deletion and patches
+    for (const f of planned.filesToDelete) {
+      const full = join(p.root, f)
+      if (existsSync(full)) rmSync(full, { force: true })
+    }
+    for (const f of planned.filesToPatch) {
+      writeFileSync(join(p.root, f.path), f.content, 'utf8')
+    }
+
+    const generatedOk = runGeneration(p, opts, () => {
+      for (const b of backups) writeFileSync(b.path, b.content, 'utf8')
+    })
+
+    if (opts.json) {
+      console.log(JSON.stringify({
+        status: 'ok',
+        action: 'remove',
+        resource: targetResource,
+        deleted: planned.filesToDelete,
+        patched: planned.filesToPatch.map((f) => f.path),
+        notes: planned.notes,
+        generated: generatedOk,
+      }, null, 2))
+    } else {
+      console.log(`\n${green('Done.')} Removed resource "${targetResource}".`)
+    }
+    return
+  }
+
+  // 5. Add Custom Action / RPC Command
+  if (cmd === 'addAction' || cmd === 'add-action') {
+    const targetResource = rest[1]
+    const actionName = rest[2]
+    if (!targetResource || !actionName) die('which resource and action? e.g. ducktpl addAction tasks complete', 'ERR_ARGS', opts.json)
+    let planned
+    try {
+      planned = planAction(p, targetResource, actionName, opts)
+    } catch (e) {
+      die(e.message, 'ERR_ACTION_FAILED', opts.json)
+    }
+
+    if (opts.dry) {
+      if (opts.json) {
+        console.log(JSON.stringify({
+          status: 'ok',
+          dryRun: true,
+          action: 'addAction',
+          resource: targetResource,
+          actionName,
+          route: planned.route,
+          files: planned.files.map((f) => ({ path: f.path, action: f.created ? 'create' : 'update' })),
+          notes: planned.notes,
+        }, null, 2))
+      } else {
+        console.log(`${bold('Adding action')} ${actionName} to ${targetResource}`)
+        for (const f of planned.files) console.log(`  ${f.created ? green('create') : yellow('update')} ${f.path}`)
+        console.log(dim('\n--dry-run: nothing written'))
+      }
+      return
+    }
+
+    const res = applyWithRollback(p.root, planned.files)
+    const generatedOk = runGeneration(p, opts, () => res.rollback())
+
+    if (opts.json) {
+      console.log(JSON.stringify({
+        status: 'ok',
+        action: 'addAction',
+        resource: targetResource,
+        actionName,
+        route: planned.route,
+        files: planned.files.map((f) => ({ path: f.path, action: f.created ? 'create' : 'update' })),
+        notes: planned.notes,
+        generated: generatedOk,
+      }, null, 2))
+    } else {
+      console.log(`\n${green('Done.')} Action "${actionName}" added on ${planned.route}.`)
+    }
+    return
+  }
+
   let subcmd = null
   let subargs = []
   if (cmd?.startsWith('moddb:')) {
@@ -232,9 +456,8 @@ function main() {
     die(`unknown command ${cmd ?? ''}\n\n${USAGE}`, 'ERR_UNKNOWN_CMD', opts.json)
   }
 
-  let p, n, fields, planned
+  let n, fields, planned
   try {
-    p = inspect(findProject(process.cwd()))
     if (cmd === 'moddb') {
       planned = planModdb(p, subcmd, subargs, opts)
     } else if (cmd === 'dto') {
@@ -313,49 +536,7 @@ function main() {
   }
 
   const res = applyWithRollback(p.root, files)
-
-  let generatedOk = true
-  if (opts.generate) {
-    const run = (label, runCmd, args, cwd) => {
-      const r = spawnSync(runCmd, args, { cwd, encoding: 'utf8' })
-      if (r.status === 0) {
-        if (!opts.json) console.log(green('✓ ') + label)
-        return true
-      }
-      const err = (r.stderr || r.stdout || '').trim().split('\n').slice(-15).join('\n')
-      if (!opts.json) {
-        console.log(yellow('! ') + label + yellow(' failed:') + '\n' + err)
-      }
-      return false
-    }
-    const gw = join(p.root, 'gateway')
-    const ok =
-      run('sqlc generate', 'make', ['generate'], gw) &&
-      run('gofmt', 'gofmt', ['-w', 'internal'], gw) &&
-      run('OpenAPI spec', 'go', ['run', './cmd/openapi-gen'], gw) &&
-      run('UI types', 'bun', ['run', 'gen-api'], join(p.root, 'web'))
-
-    if (!ok) {
-      generatedOk = false
-      if (!opts.noRollback) {
-        res.rollback()
-        if (opts.json) {
-          console.error(JSON.stringify({
-            status: 'error',
-            error: 'Post-generation build failed (sqlc, gofmt, openapi-gen, or gen-api). Workspace was automatically rolled back.',
-            rolledBack: true,
-            filesRestored: res.updatedCount,
-            filesRemoved: res.createdCount,
-          }))
-        } else {
-          console.error(red('✗ Generation failed. Workspace was rolled back to maintain a clean state.'))
-          console.error(dim(`  Restored ${res.updatedCount} files, removed ${res.createdCount} new files.`))
-        }
-        process.exit(1)
-      }
-      process.exitCode = 1
-    }
-  }
+  const generatedOk = runGeneration(p, opts, () => res.rollback())
 
   if (opts.json) {
     console.log(JSON.stringify({
