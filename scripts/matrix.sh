@@ -34,6 +34,10 @@ for i in "${!combos[@]}"; do
     # the generator must work on every combination too
     (cd .. && node "$here/bin/ducktpl.mjs" addScope projects name:string! --no-generate >/dev/null)
     (cd .. && node "$here/bin/ducktpl.mjs" addToScope projects tasks title:string! due_at:time notes:text done:bool priority:int ratio:float --no-generate >/dev/null)
+    # every UI layout must typecheck and build, not only the table
+    for ui in cards feed chat; do
+      (cd .. && node "$here/bin/ducktpl.mjs" add "${ui}_items" title:string! body:text --ui "$ui" --no-generate >/dev/null)
+    done
     go mod tidy >/dev/null 2>&1
     bin/sqlc generate
     gofmt -w .
