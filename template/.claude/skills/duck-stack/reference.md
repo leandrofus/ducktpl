@@ -12,9 +12,11 @@ Read only when the command table in SKILL.md is not enough. `npx ducktpl --help`
 | `bool` | `BOOLEAN NOT NULL DEFAULT 0` | `BOOLEAN NOT NULL DEFAULT false` | `bool` | `boolean` |
 | `time` | `DATETIME` | `TIMESTAMPTZ` | `time.Time` | `string` |
 | `date` | `TEXT` | `DATE` | `string` | `string` |
-| `json` | `TEXT NOT NULL DEFAULT '{}'` | `JSONB NOT NULL DEFAULT '{}'` | `string` | `Record<string, unknown>` |
+| `json` | `TEXT NOT NULL DEFAULT '{}'` | `JSONB NOT NULL DEFAULT '{}'` | `string` | `string` |
 | `bytes` | `BLOB` | `BYTEA` | `[]byte` | `string` |
 | `ref:<table>` | `TEXT REFERENCES …` | `TEXT REFERENCES …` | `string` | `string` |
+
+`json` travels as a JSON string in the API (`"{\"k\":1}"`): the handler turns empty into `{}` and answers 400 on invalid JSON.
 
 A `ref` column gets an `_id` suffix (`task:ref:tasks` → `task_id`), a foreign key, an index and a seed helper in tests.
 

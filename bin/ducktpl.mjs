@@ -451,10 +451,10 @@ function main() {
       return
     }
 
-    // Backup files to patch
+    // Backup every file we are about to patch or delete
     const backups = []
-    for (const f of planned.filesToPatch) {
-      const full = join(p.root, f.path)
+    for (const f of [...planned.filesToPatch.map((x) => x.path), ...planned.filesToDelete]) {
+      const full = join(p.root, f)
       if (existsSync(full)) backups.push({ path: full, content: readFileSync(full, 'utf8') })
     }
 

@@ -13,3 +13,8 @@ sql:
         rename:
           actor_ip: ActorIP
           ip: IP
+        overrides:
+          # ducktpl's json fields are strings in Go (the handler validates them);
+          # without this sqlc maps JSONB to json.RawMessage and the code does not compile
+          - db_type: jsonb
+            go_type: string
