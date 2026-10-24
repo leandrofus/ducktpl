@@ -113,17 +113,44 @@ npx ducktpl apply schema.yaml --json
 Example `schema.yaml`:
 ```yaml
 resources:
-  authors:
+  profiles:
+    ui: cards
     fields:
-      - name:string!
-      - email:string!:unique
-  articles:
+      - display_name:string!
+      - bio:text
+      - avatar_url:string
+      - status:string!:enum(online,away,offline)
+  swipes:
     fields:
-      - title:string!
-      - author:ref:authors!
-      - slug:string:index
-      - status:string:default(draft)
+      - profile:ref:profiles!
+      - target_id:string!
+      - direction:string!:enum(like,pass,superlike)
+  posts:
+    ui: feed
+    fields:
+      - author:ref:profiles!
+      - content:text!
+      - image_url:string
+  messages:
+    ui: chat
+    fields:
+      - match_id:string!
+      - sender_id:string!
+      - content:text!
+
+# Declarative Domain Event Pipelines
+pipelines:
+  - on: swipes.create
+    name: processMatch
+    preset: match_reciprocal
+    target: matches
 ```
+
+Supported `ui` layouts:
+- `table` (default): Administrative paginated data table.
+- `cards`: Interactive visual card grid with avatars/photos, enum pills, and metadata.
+- `feed`: Social activity timeline with authors, timestamps, and post cards.
+- `chat`: Conversational message thread with bubble styling and Enter-to-send compositor.
 
 ### 4. Custom RPC / Actions (`addAction`)
 Generate custom state-changing or command endpoints (e.g. `POST /api/v1/tasks/{id}/complete`):
@@ -132,15 +159,16 @@ npx ducktpl addAction tasks complete --json
 npx ducktpl addAction invoices send --json
 ```
 
-### 4b. Event Observers & Subscribers (`on` / `subscribe`)
+### 4b. Event Observers & Subscribers (`on` / `subscribe` / `pipelines`)
 Generate asynchronous domain event observers for Event-Driven Architectures (EDA):
 ```sh
-# Subscribe to an event with a preset (email, cache, webhook, log)
+# Subscribe to an event with a preset (email, cache, webhook, log, pipe, match_reciprocal)
 npx ducktpl on posts.create sendNotification --preset email --json
 npx ducktpl on posts.like invalidateCache --preset cache --json
 npx ducktpl on places.checkin triggerWebhook --preset webhook --json
+npx ducktpl on swipes.create processMatch --preset match_reciprocal --json
 ```
-Generates typed handlers in `gateway/internal/server/observers.go`, wires subscriptions at `// ducktpl:observers`, and writes concurrent Go unit tests.
+Generates typed handlers in `gateway/internal/server/observers.go`, wires subscriptions at `// ducktpl:observers` or AST boundaries, and writes concurrent Go unit tests.
 
 ### 5. Safe Resource Removal (`remove`)
 Safely remove a scaffolded resource, deleting its files and cleaning up its lines in routes, auth, rbac, and web navigation:
