@@ -1,5 +1,5 @@
 export { ResourceDialog } from './Dialog'
-export { ResourcePage } from './Page'
+export { ResourcePage, newRow } from './Page'
 export { CalendarView } from './Calendar'
 export type { CalendarProps } from './Calendar'
 export { CalendarLayout, CardsLayout, ChatLayout, FeedLayout, TableLayout, summary } from './layouts'

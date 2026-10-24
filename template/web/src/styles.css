@@ -807,3 +807,7 @@ a.rel-item:hover, button.rel-item:hover { background: var(--surface-2); cursor: 
 .cal-col.today { background-color: var(--surface-2); }
 .cal-event { position: absolute; box-sizing: border-box; white-space: normal; padding: 2px 5px; }
 .cal-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--bad, #d33); z-index: 1; pointer-events: none; }
+
+/* the tabs of a page and its sub-pages (NavItem.under in App.tsx) */
+.content > .tabs { max-width: 1600px; margin: 0 auto; padding: 0 28px; }
+.content > .tabs + .page { min-height: auto; padding-top: 16px; }

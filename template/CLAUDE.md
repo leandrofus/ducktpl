@@ -37,11 +37,13 @@ web/                          the UI (Vite + TypeScript), built into the gateway
   src/resources/              what each generated resource is (url, labels, fields, layout): no JSX
   src/ui/resource/            ResourcePage, ResourceDialog and the layouts, drawn from a resource
   src/lib/create.ts           create(): a zustand-style store; lib/list.ts keeps a list's page and search
+  src/lib/access.ts           allowed(perm): hides what the user's permissions would refuse
+  src/App.tsx                 NAV / NAV_ADMIN: `under: 'users'` makes an entry a tab of that page, not a sidebar item
 ```
 
 ## Commands
 
-- `make dev` — gateway on :8080 + Vite on :5173 with hot reload (open :5173).
+- `make dev` — gateway on the first free port from :8080 (`DUCKAPP_PORT=8085 make dev` to pick) + Vite on :5173 with hot reload (open :5173).
 - `make generate` — after touching SQL or an `openapi:` comment: sqlc, openapi.yaml, api-types.ts.
 - `make test` — vet, tests, spec up to date, UI typecheck. `make test-postgres` runs the suites on PostgreSQL.
 - `make build` — `dist/bin/duckapp`, UI embedded.

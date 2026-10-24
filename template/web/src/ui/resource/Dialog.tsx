@@ -62,7 +62,7 @@ function control(f: FieldDef, v: Row, set: (val: unknown) => void) {
 }
 
 /** Create or edit one row, with a control per field. */
-export function ResourceDialog({ def, row, scope, preset, onClose }: { def: ResourceDef; row?: Row; scope?: string; /** values a new row starts with */ preset?: Partial<Row>; onClose: () => void }) {
+export function ResourceDialog({ def, row, scope, preset, readOnly, onClose }: { def: ResourceDef; row?: Row; scope?: string; /** values a new row starts with */ preset?: Partial<Row>; /** show the row, no way to save it */ readOnly?: boolean; onClose: () => void }) {
   const [v, setV] = useState<Row>(() => ({
     ...Object.fromEntries(def.fields.map((f) => [f.name, initial(f, row ?? (preset as Row | undefined), { field: def.scope, value: scope })])),
   } as Row))
@@ -84,15 +84,17 @@ export function ResourceDialog({ def, row, scope, preset, onClose }: { def: Reso
   }
   return (
     <Modal
-      title={row ? t('Edit {0}', def.one) : t('New {0}', def.one)}
+      title={readOnly ? def.one : row ? t('Edit {0}', def.one) : t('New {0}', def.one)}
       onClose={onClose}
       footer={<>
-        <button className="btn" onClick={onClose}>{t('Cancel')}</button>
-        <button className="btn btn-primary" disabled={busy || blocked} onClick={submit}>{row ? t('Save') : t('Create')}</button>
+        <button className="btn" onClick={onClose}>{readOnly ? t('Close') : t('Cancel')}</button>
+        {!readOnly && <button className="btn btn-primary" disabled={busy || blocked} onClick={submit}>{row ? t('Save') : t('Create')}</button>}
       </>}
     >
-      <form className="form" onSubmit={(e) => (e.preventDefault(), submit())}>
-        {def.fields.map((f) => <div key={f.name} style={{ display: 'contents' }}>{control(f, v, (val) => setV({ ...v, [f.name]: val }))}</div>)}
+      <form className="form" onSubmit={(e) => (e.preventDefault(), !readOnly && submit())}>
+        <fieldset disabled={readOnly} style={{ display: 'contents', border: 0 }}>
+          {def.fields.map((f) => <div key={f.name} style={{ display: 'contents' }}>{control(f, v, (val) => setV({ ...v, [f.name]: val }))}</div>)}
+        </fieldset>
       </form>
     </Modal>
   )

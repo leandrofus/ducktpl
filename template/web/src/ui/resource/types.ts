@@ -39,6 +39,8 @@ export interface ResourceDef {
   fields: FieldDef[]
   /** the ref field that scopes the list to a parent (ducktpl addScope) */
   scope?: string
+  /** the permissions that gate it (auth module): without write the UI offers no create, edit or delete */
+  perms?: { read: string; write: string }
   /** the calendar layout: the time fields where a row starts and (optionally) ends */
   calendar?: { start: string; end?: string }
   /** extra row menu entries (ducktpl adds the links of scoped resources here) */

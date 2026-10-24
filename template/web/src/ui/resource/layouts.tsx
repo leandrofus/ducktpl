@@ -27,6 +27,8 @@ export interface LayoutProps {
   open: (x: Row) => void
   menu: (x: Row) => MenuEntry[]
   create: (preset?: Partial<Row>) => void
+  /** false: show the rows, offer no way to change them */
+  canWrite: boolean
 }
 
 const isText = (f: FieldDef) => f.type === 'string' || f.type === 'text'
@@ -104,7 +106,7 @@ export function CardsLayout({ def, rows, open, menu: actions }: LayoutProps) {
   )
 }
 
-export function FeedLayout({ def, rows, open, menu: actions }: LayoutProps) {
+export function FeedLayout({ def, rows, open, menu: actions, canWrite }: LayoutProps) {
   const menu = useMenu()
   const { title, image, text, tag } = summary(def.fields)
   return (
@@ -126,8 +128,8 @@ export function FeedLayout({ def, rows, open, menu: actions }: LayoutProps) {
           {text && <p style={{ margin: '8px 0 12px 0', lineHeight: 1.5 }}>{x[text.name]}</p>}
           {image && x[image.name] && <img src={x[image.name]} alt="" style={{ width: '100%', maxHeight: 320, objectFit: 'cover', borderRadius: 'var(--radius)', marginBottom: 12 }} />}
           <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-            <button className="btn btn-sm" onClick={() => open(x)}>{t('Edit')}</button>
-            <button className="btn btn-sm btn-danger" onClick={() => removeRow(def, x)}>{t('Delete')}</button>
+            <button className="btn btn-sm" onClick={() => open(x)}>{canWrite ? t('Edit') : t('View')}</button>
+            {canWrite && <button className="btn btn-sm btn-danger" onClick={() => removeRow(def, x)}>{t('Delete')}</button>}
           </div>
         </div>
       ))}
@@ -141,7 +143,7 @@ const chat: Record<string, CSSProperties> = {
   bar: { padding: 12, borderTop: '1px solid var(--border)', display: 'flex', gap: 8, background: 'var(--surface)' },
 }
 
-export function ChatLayout({ def, rows, menu: actions, create }: LayoutProps) {
+export function ChatLayout({ def, rows, menu: actions, create, canWrite }: LayoutProps) {
   const menu = useMenu()
   const { title, text } = summary(def.fields)
   const send = (val: string) => api.post(def.url, { [title.name]: val }).then(() => invalidate(def.url), toast.err)
@@ -160,7 +162,7 @@ export function ChatLayout({ def, rows, menu: actions, create }: LayoutProps) {
           )
         })}
       </div>
-      <div style={chat.bar}>
+      {canWrite && <div style={chat.bar}>
         <input
           placeholder={t('Type a message and press Enter…')}
           style={{ flex: 1 }}
@@ -172,12 +174,12 @@ export function ChatLayout({ def, rows, menu: actions, create }: LayoutProps) {
           }}
         />
         <button className="btn btn-primary btn-sm" onClick={() => create()}>{t('New')}</button>
-      </div>
+      </div>}
     </div>
   )
 }
 
-export function CalendarLayout({ def, rows, open, create }: LayoutProps) {
+export function CalendarLayout({ def, rows, open, create, canWrite }: LayoutProps) {
   const cal = def.calendar
   const { title } = summary(def.fields)
   if (!cal) return <div className="alert alert-bad">{t('{0} has no calendar fields', def.label)}</div>
@@ -191,7 +193,7 @@ export function CalendarLayout({ def, rows, open, create }: LayoutProps) {
       itemKey={(x) => x.id}
       render={(x) => <span>{x[title.name]}</span>}
       onOpen={open}
-      onCreate={(d) => create({ [cal.start]: d.toISOString(), ...(cal.end ? { [cal.end]: new Date(+d + 3600000).toISOString() } : {}) })}
+      onCreate={!canWrite ? undefined : (d) => create({ [cal.start]: d.toISOString(), ...(cal.end ? { [cal.end]: new Date(+d + 3600000).toISOString() } : {}) })}
     />
   )
 }

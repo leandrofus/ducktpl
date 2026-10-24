@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { useMemo } from 'react'
 import { t } from '../../i18n'
 import type { Page } from '../../lib/api'
+import { allowed } from '../../lib/access'
 import { useList } from '../../lib/list'
 import { usePref } from '../../lib/prefs'
 import { useResource } from '../../lib/store'
@@ -13,6 +14,9 @@ import { ResourceDialog } from './Dialog'
 import { LAYOUTS, removeRow } from './layouts'
 import { RefOptions } from './refs'
 import type { ResourceDef, Row } from './types'
+
+/** Open the dialog for a new row, from anywhere (the Create button in the top bar). */
+export const newRow = (def: ResourceDef) => openDialog((c) => <ResourceDialog def={def} onClose={c} />)
 
 /**
  * The list page of a resource: header, search, scope picker, the layout the
@@ -34,14 +38,15 @@ export function ResourcePage({ def, icon, empty }: { def: ResourceDef; icon?: Re
     return (data?.items || []).filter((x) => words.every((w) => JSON.stringify(x).toLowerCase().includes(w)))
   }, [data?.items, q])
 
+  const canWrite = allowed(def.perms?.write)
   const create = (preset?: Partial<Row>) => openDialog((c) => <ResourceDialog def={def} scope={scope} preset={preset} onClose={c} />)
-  const open = (x: Row) => openDialog((c) => <ResourceDialog def={def} row={x} onClose={c} />)
+  const open = (x: Row) => openDialog((c) => <ResourceDialog def={def} row={x} readOnly={!canWrite} onClose={c} />)
   const menu = (x: Row): MenuEntry[] => [
     { header: x[def.fields.find((f) => f.type === 'string' || f.type === 'text')?.name ?? 'id'] || x.id },
-    { label: t('Edit…'), icon: <Pencil size={14} />, onClick: () => open(x) },
+    { label: canWrite ? t('Edit…') : t('View'), icon: <Pencil size={14} />, onClick: () => open(x) },
     ...(def.actions?.(x) ?? []),
-    'sep',
-    { label: t('Delete'), icon: <Trash2 size={14} />, danger: true, onClick: () => removeRow(def, x, def.scope ? t('Everything in it is deleted too. This cannot be undone.') : undefined) },
+    canWrite && 'sep',
+    canWrite && { label: t('Delete'), icon: <Trash2 size={14} />, danger: true, onClick: () => removeRow(def, x, def.scope ? t('Everything in it is deleted too. This cannot be undone.') : undefined) },
   ]
   const Layout = LAYOUTS[def.layout] ?? LAYOUTS.table
 
@@ -66,15 +71,15 @@ export function ResourcePage({ def, icon, empty }: { def: ResourceDef; icon?: Re
             <input placeholder={t('Search…')} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
             {q && <button className="icon-btn" onClick={() => setQ('')}><X size={13} /></button>}
           </div>
-          <button className="btn btn-primary btn-sm" onClick={() => create()}><Plus size={14} /> {t('New')}</button>
+          {canWrite && <button className="btn btn-primary btn-sm" onClick={() => create()}><Plus size={14} /> {t('New')}</button>}
         </div>
       </div>
       <div className="page-body">
         {error && <div className="alert alert-bad">{error.message}</div>}
         {data && data.total === 0 ? (
-          empty ?? <Empty icon={icon} title={t('Nothing here yet')} action={<button className="btn btn-primary" onClick={() => create()}><Plus size={14} /> {t('New')}</button>} />
+          empty ?? <Empty icon={icon} title={t('Nothing here yet')} action={canWrite ? <button className="btn btn-primary" onClick={() => create()}><Plus size={14} /> {t('New')}</button> : undefined} />
         ) : (
-          <Layout def={def} rows={rows} total={data?.total ?? 0} page={page} perPage={perPage} setPage={setPage} setPerPage={setPerPage} open={open} menu={menu} create={create} />
+          <Layout def={def} rows={rows} total={data?.total ?? 0} page={page} perPage={perPage} setPage={setPage} setPerPage={setPerPage} open={open} menu={menu} create={create} canWrite={canWrite} />
         )}
       </div>
     </div>

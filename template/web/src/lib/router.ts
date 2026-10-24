@@ -11,7 +11,7 @@ export interface Route {
 export function parse(hash = location.hash): Route {
   const [path, qs] = hash.replace(/^#\/?/, '').split('?')
   const parts = path.split('/').filter(Boolean).map(decodeURIComponent)
-  return { section: parts[0] || 'notes', id: parts[1], tab: parts[2], query: new URLSearchParams(qs || '') }
+  return { section: parts[0] || '', id: parts[1], tab: parts[2], query: new URLSearchParams(qs || '') }
 }
 
 export function href(section: string, id?: string, tab?: string) {
