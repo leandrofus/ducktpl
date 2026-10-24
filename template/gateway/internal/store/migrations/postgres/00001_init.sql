@@ -17,13 +17,26 @@ LANGUAGE sql STABLE PARALLEL SAFE AS $$ SELECT extract(epoch FROM t::timestamptz
 -- notes: the example resource. Replace it with your own.
 CREATE TABLE notes (
     id         TEXT PRIMARY KEY,
+-- duck:if multitenant
+--     tenant_id  TEXT NOT NULL DEFAULT '',
+-- duck:end
     title      TEXT NOT NULL UNIQUE,
     body       TEXT NOT NULL DEFAULT '',
     pinned     BOOLEAN NOT NULL DEFAULT false,
     created_at TIMESTAMPTZ NOT NULL,
     updated_at TIMESTAMPTZ NOT NULL
 );
+-- duck:if multitenant
+-- ALTER TABLE notes ENABLE ROW LEVEL SECURITY;
+-- CREATE POLICY notes_tenant_isolation ON notes
+--     USING (tenant_id = current_setting('app.current_tenant', true))
+--     WITH CHECK (tenant_id = current_setting('app.current_tenant', true));
+-- CREATE INDEX notes_tenant_id ON notes (tenant_id);
+-- duck:end
 
 -- +goose Down
+-- duck:if multitenant
+-- DROP POLICY IF EXISTS notes_tenant_isolation ON notes;
+-- duck:end
 DROP TABLE notes;
 DROP FUNCTION julianday(timestamptz), julianday(text);

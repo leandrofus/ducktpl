@@ -6,19 +6,26 @@ duckforum): un gateway en Go que sirve una API JSON y la UI web embebida en
 generado desde el código y los tipos de la UI generados desde el contrato.
 
 ```sh
-bunx create-duck mi-app                 # pregunta
-npx create-duck mi-app --web preact --with auth,rbac,audit,sse --yes
+bunx create-duck mi-app                 # pregunta (web, modelo RLS multitenant/singleTenant, módulos, owner)
+npx create-duck mi-app --web preact --rls multitenant --with auth,rbac,audit,sse --yes
 ```
 
 Después `cd mi-app && make dev`.
 
-## Agregar recursos después
+## Modificar base de datos y agregar recursos
 
 Dentro de un proyecto generado:
 
 ```sh
+# Agregar un recurso CRUD
 npx ducktpl add tasks title:string! notes:text done:bool priority:int
 npx ducktpl --addRoute people full_name:string! --singular person
+
+# Modificar esquema de base de datos en SQLite y PostgreSQL
+npx ducktpl moddb addColumn tasks status:string!
+npx ducktpl moddb renameColumn tasks title heading
+npx ducktpl moddb changeType tasks priority:int! --force
+npx ducktpl moddb removeColumn tasks status
 ```
 
 Pasa por todas las capas (migraciones de ambos motores, queries, handlers con

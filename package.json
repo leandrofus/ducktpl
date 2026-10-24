@@ -16,6 +16,7 @@
     "node": ">=18"
   },
   "scripts": {
+    "test": "node --test lib/*.test.mjs",
     "check": "node bin/create-duck.mjs --check",
     "matrix": "scripts/matrix.sh"
   },

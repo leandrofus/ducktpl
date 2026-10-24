@@ -8,9 +8,9 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
-import { createInterface } from 'node:readline/promises'
 import { fileURLToPath } from 'node:url'
-import { FEATURES, WEBS, configure } from '../lib/features.mjs'
+import { FEATURES, TENANTS, WEBS, configure } from '../lib/features.mjs'
+import { multiSelect, select, textInput } from '../lib/prompt.mjs'
 import { check, isEmptyDir, names, removeEmptyDirs, scaffold } from '../lib/scaffold.mjs'
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'template')
@@ -21,6 +21,7 @@ const bold = c(1), dim = c(2), green = c(32), yellow = c(33), red = c(31), cyan 
 const USAGE = `${bold('create-duck')} <name> [options]
 
   --web react|preact     web framework (default react)
+  --rls singleTenant|multitenant tenant isolation with RLS (mandatory; default singleTenant with -y)
   --with a,b,c           modules (see below); "all" for every one
   --owner <github-user>  Go module path github.com/<owner>/<name> (default: git config github.user)
   --yes, -y              no questions: defaults for what is not given
@@ -32,7 +33,7 @@ ${FEATURES.map((f) => `  ${f.id.padEnd(7)} ${f.label} — ${dim(f.hint)}${f.requ
 `
 
 function parseArgs(argv) {
-  const a = { with: null, web: null, owner: null, yes: false, install: true, check: false, name: null, help: false }
+  const a = { with: null, web: null, rls: null, owner: null, yes: false, install: true, check: false, name: null, help: false }
   for (let i = 0; i < argv.length; i++) {
     const x = argv[i]
     const val = () => argv[++i] ?? die(`${x} needs a value`)
@@ -40,6 +41,9 @@ function parseArgs(argv) {
     else if (x.startsWith('--with=')) a.with = x.slice(7)
     else if (x === '--web') a.web = val()
     else if (x.startsWith('--web=')) a.web = x.slice(6)
+    else if (x === '--rls' || x === '--tenant') a.rls = val()
+    else if (x.startsWith('--rls=')) a.rls = x.slice(6)
+    else if (x.startsWith('--tenant=')) a.rls = x.slice(9)
     else if (x === '--owner') a.owner = val()
     else if (x.startsWith('--owner=')) a.owner = x.slice(8)
     else if (x === '--yes' || x === '-y') a.yes = true
@@ -49,6 +53,12 @@ function parseArgs(argv) {
     else if (x.startsWith('-')) die(`unknown option ${x}`)
     else if (!a.name) a.name = x
     else die(`unexpected argument ${x}`)
+  }
+  if (a.rls) {
+    const low = a.rls.toLowerCase().replace(/[-_]/g, '')
+    if (low === 'singletenant' || low === 'single') a.rls = 'singleTenant'
+    else if (low === 'multitenant' || low === 'multi') a.rls = 'multitenant'
+    else die(`unknown --rls value "${a.rls}" (must be singleTenant or multitenant)`)
   }
   return a
 }
@@ -71,31 +81,22 @@ function gitConfig(key) {
 }
 
 async function ask(args) {
-  const rl = createInterface({ input: process.stdin, output: process.stdout })
-  try {
-    if (!args.name) args.name = (await rl.question(`${cyan('?')} Project name: `)).trim()
-    if (!args.web) {
-      console.log(`${cyan('?')} Web framework:`)
-      WEBS.forEach((w, i) => console.log(`  ${i + 1}) ${w.label}`))
-      const x = (await rl.question(dim('  [1] ') )).trim()
-      args.web = WEBS[(parseInt(x) || 1) - 1]?.id ?? die(`no option ${x}`)
-    }
-    if (args.with === null) {
-      console.log(`${cyan('?')} Modules (numbers or names, comma-separated; enter for none):`)
-      FEATURES.forEach((f, i) => console.log(`  ${String(i + 1).padStart(2)}) ${f.label.padEnd(22)} ${dim(f.hint)}`))
-      const x = (await rl.question('  > ')).trim()
-      args.with = x
-        .split(/[\s,]+/)
-        .filter(Boolean)
-        .map((t) => (/^\d+$/.test(t) ? FEATURES[+t - 1]?.id ?? die(`no module ${t}`) : t))
-        .join(',')
-    }
-    if (!args.owner) {
-      const def = gitConfig('github.user') || 'leandrofus'
-      args.owner = (await rl.question(`${cyan('?')} GitHub owner for the Go module ${dim(`[${def}]`)}: `)).trim() || def
-    }
-  } finally {
-    rl.close()
+  if (!args.name) {
+    args.name = (await textInput('Project name')).trim()
+  }
+  if (!args.web) {
+    args.web = await select('Web framework', WEBS, { defaultId: 'react' })
+  }
+  if (!args.rls) {
+    args.rls = await select('Tenant model (RLS)', TENANTS, { defaultId: 'singleTenant' })
+  }
+  if (args.with === null) {
+    const chosen = await multiSelect('Modules', FEATURES)
+    args.with = chosen.join(',')
+  }
+  if (!args.owner) {
+    const def = gitConfig('github.user') || 'leandrofus'
+    args.owner = (await textInput('GitHub owner for the Go module', { defaultValue: def })).trim() || def
   }
 }
 
@@ -109,12 +110,16 @@ async function main() {
   if (!args.yes && process.stdin.isTTY) await ask(args)
   args.web ??= 'react'
   args.owner ??= gitConfig('github.user') || 'leandrofus'
+  if (!args.rls) {
+    if (!args.yes) die('an RLS model is required: pass --rls singleTenant or --rls multitenant\n\n' + USAGE)
+    args.rls = 'singleTenant'
+  }
   if (!args.name) die('a project name is required\n\n' + USAGE)
   if (!/^[a-z][a-z0-9-]{0,40}$/.test(args.name)) die('the name must be lowercase letters, digits and dashes, starting with a letter')
   const ids = args.with === 'all' ? FEATURES.map((f) => f.id) : (args.with || '').split(',').map((s) => s.trim()).filter(Boolean)
   let cfg
   try {
-    cfg = configure(ids, args.web)
+    cfg = configure(ids, args.web, args.rls)
   } catch (e) {
     die(e.message)
   }
@@ -125,7 +130,7 @@ async function main() {
   const n = names(args.name, args.owner)
   const on = FEATURES.filter((f) => cfg[f.id]).map((f) => f.id)
   console.log(`\n${bold('Creating')} ${n.display} in ${dest}`)
-  console.log(dim(`  web: ${args.web} · modules: ${on.join(', ') || 'none'} · module: ${n.module}/gateway\n`))
+  console.log(dim(`  web: ${args.web} · rls: ${args.rls} · modules: ${on.join(', ') || 'none'} · module: ${n.module}/gateway\n`))
   const files = scaffold(TEMPLATE, dest, cfg, n)
   removeEmptyDirs(dest)
   console.log(green('✓ ') + `${files.length} files`)

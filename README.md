@@ -8,19 +8,26 @@ generated from the code and the UI's types generated from the contract.
 [Español](README.es.md)
 
 ```sh
-bunx create-duck my-app                 # asks
-npx create-duck my-app --web preact --with auth,rbac,audit,sse --yes
+bunx create-duck my-app                 # asks (web, RLS tenant model, modules, owner)
+npx create-duck my-app --web preact --rls multitenant --with auth,rbac,audit,sse --yes
 ```
 
 Then `cd my-app && make dev`.
 
-## Adding resources later
+## Modifying database & adding resources later
 
 Inside a generated project:
 
 ```sh
+# Add a CRUD resource
 npx ducktpl add tasks title:string! notes:text done:bool priority:int ratio:float
 npx ducktpl --addRoute people full_name:string! --singular person
+
+# Modify database schema across SQLite & PostgreSQL
+npx ducktpl moddb addColumn tasks status:string!
+npx ducktpl moddb renameColumn tasks title heading
+npx ducktpl moddb changeType tasks priority:int! --force
+npx ducktpl moddb removeColumn tasks status
 ```
 
 It goes through every layer — migrations for both engines, sqlc queries,

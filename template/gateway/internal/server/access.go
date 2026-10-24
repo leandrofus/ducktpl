@@ -19,6 +19,9 @@ const (
 	// duck:if auth
 	sessionCookie = "duckapp_session"
 	// duck:end
+	// duck:if multitenant
+	// tenantHeader = "X-Tenant-ID"
+	// duck:end
 	// Mutating requests must carry this header. Browsers cannot add custom
 	// headers to cross-site requests without a CORS preflight we never
 	// answer, so together with SameSite=Strict cookies it stops CSRF.
@@ -28,6 +31,9 @@ const (
 // principal is who is calling.
 type principal struct {
 	IP string
+	// duck:if multitenant
+	// TenantID string
+	// duck:end
 	// duck:if auth
 	User        db.User
 	SessionHash string
@@ -65,7 +71,12 @@ func (s *Server) public(h handlerFunc) http.Handler {
 			writeErr(w, err)
 			return
 		}
-		if err := h(w, r, principal{IP: s.clientIP(r)}); err != nil {
+		// duck:if multitenant
+		// p := principal{IP: s.clientIP(r), TenantID: r.Header.Get(tenantHeader)}
+		// duck:else
+		p := principal{IP: s.clientIP(r)}
+		// duck:end
+		if err := h(w, r, p); err != nil {
 			writeErr(w, err)
 		}
 	})
@@ -85,7 +96,11 @@ func (s *Server) resolve(r *http.Request) (principal, error) {
 	if err != nil {
 		return principal{}, err
 	}
+	// duck:if multitenant
+	// return principal{IP: s.clientIP(r), TenantID: r.Header.Get(tenantHeader), User: sess.User, SessionHash: sess.IDHash, Perms: perms}, nil
+	// duck:else
 	return principal{IP: s.clientIP(r), User: sess.User, SessionHash: sess.IDHash, Perms: perms}, nil
+	// duck:end
 }
 
 // signedIn requires a session; what the caller may do is checked inside.

@@ -9,12 +9,18 @@
 -- notes: the example resource. Replace it with your own.
 CREATE TABLE notes (
     id         TEXT PRIMARY KEY,
+-- duck:if multitenant
+--     tenant_id  TEXT NOT NULL DEFAULT '',
+-- duck:end
     title      TEXT NOT NULL UNIQUE,
     body       TEXT NOT NULL DEFAULT '',
     pinned     BOOLEAN NOT NULL DEFAULT 0,
     created_at DATETIME NOT NULL,
     updated_at DATETIME NOT NULL
 );
+-- duck:if multitenant
+-- CREATE INDEX notes_tenant_id ON notes (tenant_id);
+-- duck:end
 
 -- +goose Down
 DROP TABLE notes;
