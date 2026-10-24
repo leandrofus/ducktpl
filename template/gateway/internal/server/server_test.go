@@ -33,7 +33,7 @@ import (
 	// duck:if redis
 	"github.com/duckowner/duckapp/gateway/internal/cache"
 	// duck:end
-	// duck:if ws|sse
+	// duck:if ws|sse|eventbus
 	"github.com/duckowner/duckapp/gateway/internal/events"
 	// duck:end
 	// duck:if s3
@@ -65,7 +65,7 @@ func newTestServer(t *testing.T) *httptest.Server {
 	// duck:if redis
 	srv.Cache = cache.NewMemory()
 	// duck:end
-	// duck:if ws|sse
+	// duck:if ws|sse|eventbus
 	srv.Events = events.New()
 	// duck:end
 	// duck:if s3

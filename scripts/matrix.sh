@@ -11,7 +11,7 @@ out=${MATRIX_DIR:-$(mktemp -d)}
 mkdir -p "$out"
 combos=("$@")
 if [ ${#combos[@]} -eq 0 ]; then
-  combos=("" "auth" "auth,rbac" "auth,pam" "auth,audit,sse" "audit,ws,sse,redis,s3,ssr" "auth,rbac,s3,ws" "all")
+  combos=("" "auth" "auth,rbac" "auth,pam" "auth,audit,sse" "audit,ws,sse,redis,s3,ssr" "auth,rbac,s3,ws" "all" "eventbus" "auth,rbac,audit,eventbus,s3,ssr")
 fi
 sqlc=$here/template/gateway/bin/sqlc
 [ -x "$sqlc" ] || make -C "$here/template/gateway" bin/sqlc >/dev/null

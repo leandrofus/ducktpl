@@ -185,6 +185,7 @@ async function main() {
 
   // Apply declarative schema resources if defined
   let appliedResources = []
+  let applyError = null
   if (manifestObj && manifestObj.resources && Object.keys(manifestObj.resources).length > 0) {
     try {
       const p = inspect(dest)
@@ -192,7 +193,9 @@ async function main() {
       applyWithRollback(dest, planned.files)
       appliedResources = planned.resources
     } catch (e) {
-      if (!args.json) console.error(yellow('! Failed applying initial schema resources: ' + e.message))
+      applyError = e.message
+      process.exitCode = 1
+      if (!args.json) console.error(red('✗ ') + 'the manifest resources were not applied: ' + e.message)
     }
   }
 
@@ -200,7 +203,8 @@ async function main() {
 
   if (args.json) {
     console.log(JSON.stringify({
-      status: 'ok',
+      status: applyError ? 'partial' : 'ok',
+      ...(applyError && { error: `the app was created without its resources: ${applyError}. Fix the manifest, then run: npx ducktpl apply <schema.yaml> --json inside ${args.name}/` }),
       name: n.lower,
       dest,
       web: args.web,

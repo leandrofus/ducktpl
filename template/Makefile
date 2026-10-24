@@ -70,7 +70,10 @@ test-go:
 	cd gateway && go vet ./... && go test ./... && go run ./cmd/openapi-gen -check
 
 test-web:
-	cd web && bun install --frozen-lockfile && bun run gen-api && git diff --exit-code src/lib/api-types.ts && bun run typecheck
+	cd web && bun install --frozen-lockfile
+	@# regenerated types must equal the file on disk (not the git index: uncommitted work is fine)
+	cd web && cp src/lib/api-types.ts .api-types.prev && bun run gen-api && diff -u .api-types.prev src/lib/api-types.ts; rc=$$?; rm -f .api-types.prev; exit $$rc
+	cd web && bun run typecheck
 
 # Runs a throwaway container (docker or podman) unless one is already up.
 CONTAINER := $(shell command -v docker || command -v podman)

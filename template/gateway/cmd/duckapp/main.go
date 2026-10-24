@@ -30,7 +30,7 @@ import (
 	// duck:if redis
 	"github.com/duckowner/duckapp/gateway/internal/cache"
 	// duck:end
-	// duck:if ws|sse
+	// duck:if ws|sse|eventbus
 	"github.com/duckowner/duckapp/gateway/internal/events"
 	// duck:end
 	// duck:if s3
