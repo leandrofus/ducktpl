@@ -27,7 +27,7 @@ export interface FieldDef {
   ref?: RefDef
 }
 
-export type Layout = 'table' | 'cards' | 'feed' | 'chat'
+export type Layout = 'table' | 'cards' | 'feed' | 'chat' | 'calendar'
 
 export interface ResourceDef {
   url: string
@@ -39,6 +39,8 @@ export interface ResourceDef {
   fields: FieldDef[]
   /** the ref field that scopes the list to a parent (ducktpl addScope) */
   scope?: string
+  /** the calendar layout: the time fields where a row starts and (optionally) ends */
+  calendar?: { start: string; end?: string }
   /** extra row menu entries (ducktpl adds the links of scoped resources here) */
   actions?: (x: any) => MenuEntry[]
 }

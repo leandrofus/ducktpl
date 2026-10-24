@@ -62,9 +62,9 @@ function control(f: FieldDef, v: Row, set: (val: unknown) => void) {
 }
 
 /** Create or edit one row, with a control per field. */
-export function ResourceDialog({ def, row, scope, onClose }: { def: ResourceDef; row?: Row; scope?: string; onClose: () => void }) {
+export function ResourceDialog({ def, row, scope, preset, onClose }: { def: ResourceDef; row?: Row; scope?: string; /** values a new row starts with */ preset?: Partial<Row>; onClose: () => void }) {
   const [v, setV] = useState<Row>(() => ({
-    ...Object.fromEntries(def.fields.map((f) => [f.name, initial(f, row, { field: def.scope, value: scope })])),
+    ...Object.fromEntries(def.fields.map((f) => [f.name, initial(f, row ?? (preset as Row | undefined), { field: def.scope, value: scope })])),
   } as Row))
   const [busy, setBusy] = useState(false)
   const blocked = def.fields.some((f) => f.required && (f.type === 'string' || f.type === 'text' || f.type === 'ref' || f.type === 'time' || f.type === 'date' || f.type === 'json')

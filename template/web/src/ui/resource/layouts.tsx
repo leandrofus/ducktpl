@@ -9,6 +9,7 @@ import type { Column } from '../common'
 import { useMenu } from '../ContextMenu'
 import type { MenuEntry } from '../ContextMenu'
 import { confirm, toast } from '../overlays'
+import { CalendarView } from './Calendar'
 import { RefName } from './refs'
 import type { FieldDef, ResourceDef, Row } from './types'
 
@@ -25,7 +26,7 @@ export interface LayoutProps {
   setPerPage: (n: number) => void
   open: (x: Row) => void
   menu: (x: Row) => MenuEntry[]
-  create: () => void
+  create: (preset?: Partial<Row>) => void
 }
 
 const isText = (f: FieldDef) => f.type === 'string' || f.type === 'text'
@@ -170,9 +171,28 @@ export function ChatLayout({ def, rows, menu: actions, create }: LayoutProps) {
             send(val)
           }}
         />
-        <button className="btn btn-primary btn-sm" onClick={create}>{t('New')}</button>
+        <button className="btn btn-primary btn-sm" onClick={() => create()}>{t('New')}</button>
       </div>
     </div>
+  )
+}
+
+export function CalendarLayout({ def, rows, open, create }: LayoutProps) {
+  const cal = def.calendar
+  const { title } = summary(def.fields)
+  if (!cal) return <div className="alert alert-bad">{t('{0} has no calendar fields', def.label)}</div>
+  const at = (x: Row, f?: string) => (f && x[f] ? new Date(x[f]) : null)
+  const shown = rows.filter((x) => at(x, cal.start))
+  return (
+    <CalendarView
+      items={shown}
+      start={(x) => at(x, cal.start)!}
+      end={(x) => at(x, cal.end)}
+      itemKey={(x) => x.id}
+      render={(x) => <span>{x[title.name]}</span>}
+      onOpen={open}
+      onCreate={(d) => create({ [cal.start]: d.toISOString(), ...(cal.end ? { [cal.end]: new Date(+d + 3600000).toISOString() } : {}) })}
+    />
   )
 }
 
@@ -181,4 +201,4 @@ export async function removeRow(def: ResourceDef, x: Row, body = t('This cannot 
   api.del(`${def.url}/${enc(x.id)}`).then(() => invalidate(def.url), toast.err)
 }
 
-export const LAYOUTS = { table: TableLayout, cards: CardsLayout, feed: FeedLayout, chat: ChatLayout }
+export const LAYOUTS = { table: TableLayout, cards: CardsLayout, feed: FeedLayout, chat: ChatLayout, calendar: CalendarLayout }

@@ -152,4 +152,9 @@ export const es: Record<string, string> = {
   "updated {0}": "actualizada {0}",
   "user": "usuario",
   "{0} selected": "{0} seleccionados",
+  "Month": "Mes",
+  "Week": "Semana",
+  "Today": "Hoy",
+  "{0} more": "{0} más",
+  "{0} has no calendar fields": "{0} no tiene campos de calendario",
 }

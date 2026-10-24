@@ -27,13 +27,14 @@ export function ResourcePage({ def, icon, empty }: { def: ResourceDef; icon?: Re
   const list = useList(`${def.url}:${def.layout}`, def.layout === 'table' ? 25 : 50)
   const { page, perPage, q, setPage, setPerPage, setQ } = list()
   const base = scopeRef && scope ? `${scopeRef.url}/${encodeURIComponent(scope)}${def.url}` : def.url
-  const { data, error, loading } = useResource<Page<Row>>(`${base}?page=${page}&per_page=${perPage}`)
+  // a calendar shows a span of time, not a page of rows
+  const { data, error, loading } = useResource<Page<Row>>(def.layout === 'calendar' ? `${base}?all=1` : `${base}?page=${page}&per_page=${perPage}`)
   const rows = useMemo(() => {
     const words = q.toLowerCase().split(/\s+/).filter(Boolean)
     return (data?.items || []).filter((x) => words.every((w) => JSON.stringify(x).toLowerCase().includes(w)))
   }, [data?.items, q])
 
-  const create = () => openDialog((c) => <ResourceDialog def={def} scope={scope} onClose={c} />)
+  const create = (preset?: Partial<Row>) => openDialog((c) => <ResourceDialog def={def} scope={scope} preset={preset} onClose={c} />)
   const open = (x: Row) => openDialog((c) => <ResourceDialog def={def} row={x} onClose={c} />)
   const menu = (x: Row): MenuEntry[] => [
     { header: x[def.fields.find((f) => f.type === 'string' || f.type === 'text')?.name ?? 'id'] || x.id },
@@ -65,13 +66,13 @@ export function ResourcePage({ def, icon, empty }: { def: ResourceDef; icon?: Re
             <input placeholder={t('Search…')} value={q} onChange={(e) => setQ(e.currentTarget.value)} />
             {q && <button className="icon-btn" onClick={() => setQ('')}><X size={13} /></button>}
           </div>
-          <button className="btn btn-primary btn-sm" onClick={create}><Plus size={14} /> {t('New')}</button>
+          <button className="btn btn-primary btn-sm" onClick={() => create()}><Plus size={14} /> {t('New')}</button>
         </div>
       </div>
       <div className="page-body">
         {error && <div className="alert alert-bad">{error.message}</div>}
         {data && data.total === 0 ? (
-          empty ?? <Empty icon={icon} title={t('Nothing here yet')} action={<button className="btn btn-primary" onClick={create}><Plus size={14} /> {t('New')}</button>} />
+          empty ?? <Empty icon={icon} title={t('Nothing here yet')} action={<button className="btn btn-primary" onClick={() => create()}><Plus size={14} /> {t('New')}</button>} />
         ) : (
           <Layout def={def} rows={rows} total={data?.total ?? 0} page={page} perPage={perPage} setPage={setPage} setPerPage={setPerPage} open={open} menu={menu} create={create} />
         )}

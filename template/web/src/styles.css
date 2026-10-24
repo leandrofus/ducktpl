@@ -785,3 +785,25 @@ a.rel-item:hover, button.rel-item:hover { background: var(--surface-2); cursor: 
 .notification-time { color: var(--muted); font-size: 0.7rem; }
 .notifications-empty { padding: 24px 16px; text-align: center; color: var(--muted); font-size: 0.82rem; }
 
+
+/* ---- calendar (ui/resource/Calendar.tsx) ---- */
+.cal { display: flex; flex-direction: column; gap: 8px; }
+.cal-bar { display: flex; align-items: center; gap: 6px; }
+.cal-title { margin-left: 8px; text-transform: capitalize; }
+.cal-views { margin-left: auto; display: flex; gap: 4px; }
+.cal-head { display: grid; grid-template-columns: repeat(7, 1fr); color: var(--muted); font-size: 12px; text-transform: capitalize; }
+.cal-head span { padding: 2px 6px; }
+.cal-month { display: grid; grid-template-columns: repeat(7, 1fr); border-top: 1px solid var(--border); border-left: 1px solid var(--border); }
+.cal-day { min-height: 104px; padding: 4px; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); background: var(--surface); display: flex; flex-direction: column; gap: 2px; cursor: pointer; min-width: 0; }
+.cal-day.out { background: var(--surface-2); color: var(--muted); }
+.cal-day.today .cal-num { background: var(--accent); color: #fff; }
+.cal-num { align-self: flex-start; font-size: 12px; min-width: 20px; height: 20px; line-height: 20px; text-align: center; border-radius: 10px; }
+.cal-chip, .cal-event { text-align: left; border: 0; border-radius: 4px; background: var(--accent-soft); color: var(--accent); font: inherit; font-size: 12px; padding: 1px 5px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; cursor: pointer; }
+.cal-chip em, .cal-event em { font-style: normal; opacity: .7; margin-right: 3px; }
+.cal-more { border: 0; background: none; color: var(--muted); font: inherit; font-size: 12px; text-align: left; cursor: pointer; padding: 0 5px; }
+.cal-week { position: relative; display: grid; grid-template-columns: 44px repeat(7, 1fr); max-height: 620px; overflow-y: auto; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+.cal-hours span { display: block; font-size: 11px; color: var(--muted); text-align: right; padding-right: 6px; box-sizing: border-box; }
+.cal-col { position: relative; border-left: 1px solid var(--border); background-image: linear-gradient(var(--border) 1px, transparent 1px); background-size: 100% 48px; cursor: pointer; }
+.cal-col.today { background-color: var(--surface-2); }
+.cal-event { position: absolute; box-sizing: border-box; white-space: normal; padding: 2px 5px; }
+.cal-now { position: absolute; left: 0; right: 0; height: 2px; background: var(--bad, #d33); z-index: 1; pointer-events: none; }

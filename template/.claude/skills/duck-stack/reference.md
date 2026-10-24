@@ -34,6 +34,7 @@ A `ref` column gets an `_id` suffix (`task:ref:tasks` → `task_id`), a foreign 
 - `cards` — card grid with avatar/photo, enum pills, metadata.
 - `feed` — timeline with author, timestamp and post cards.
 - `chat` — message thread with bubbles and Enter-to-send.
+- `calendar` — month and week views placed by the first `time` field (the end is another one named end/until); click a day or slot to create there. Needs a time field: `starts_at:time! ends_at:time`.
 - `none` (`--no-ui`, `ui: none`) — no page, nav entry or scope link: only `web/src/resources/<table>.ts`. Build the UI yourself (a calendar, a board…) on `ResourceDef` and the hooks in `lib/store.ts`.
 
 Every resource gets `web/src/resources/<table>.ts` (url, labels, fields, layout). `ui/resource/` (`ResourcePage`, `ResourceDialog`, one component per layout) draws from it, so editing a field there is enough: no JSX to patch. List state (page, search) lives in `lib/list.ts`, a zustand-style store from `lib/create.ts`.
