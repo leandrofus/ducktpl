@@ -34,6 +34,9 @@ web/                          the UI (Vite + TypeScript), built into the gateway
   src/lib/store.ts            useResource(path): cached, revalidating reads; invalidate(prefix)
   src/i18n/                   t('English source'); es.ts maps it to Spanish
   src/pages/                  one file per section
+  src/resources/              what each generated resource is (url, labels, fields, layout): no JSX
+  src/ui/resource/            ResourcePage, ResourceDialog and the layouts, drawn from a resource
+  src/lib/create.ts           create(): a zustand-style store; lib/list.ts keeps a list's page and search
 ```
 
 ## Commands

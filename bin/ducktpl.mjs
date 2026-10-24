@@ -58,6 +58,7 @@ Adds resources, RPC actions, alters schemas safely, molds DTOs, or applies batch
   --dto f1,f2     (for add) specify which fields to expose in the DTO
   --omit-dto f1   (for add) specify which fields to exclude from the DTO
   --ui layout     (for add/apply) UI layout: table (default), cards, feed, chat
+  --no-ui         (for add/apply) no page, nav entry or link: only web/src/resources/<table>.ts, to build your own UI
   --preset type   (for on) observer preset: log, email, cache, webhook, pipe, match_reciprocal
   --pipe target   (for on) cascade domain mutation to another resource/action
   --json          machine-readable JSON output (ideal for AI agents)
@@ -199,6 +200,7 @@ function main() {
     else if (a === '--remove') opts.remove = argv[++i] ?? die('--remove needs a value', 'ERR_ARGS', opts.json)
     else if (a === '--dto') opts.dto = argv[++i] ?? die('--dto needs a value', 'ERR_ARGS', opts.json)
     else if (a === '--omit-dto') opts.dtoOmit = argv[++i] ?? die('--omit-dto needs a value', 'ERR_ARGS', opts.json)
+    else if (a === '--no-ui') opts.ui = 'none'
     else if (a === '--ui') opts.ui = argv[++i] ?? die('--ui needs a value (cards, feed, chat, table)', 'ERR_ARGS', opts.json)
     else if (a === '--preset') opts.preset = argv[++i] ?? die('--preset needs a value', 'ERR_ARGS', opts.json)
     else if (a === '--pipe') opts.pipe = argv[++i] ?? die('--pipe needs a value', 'ERR_ARGS', opts.json)
