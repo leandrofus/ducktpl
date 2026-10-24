@@ -5,8 +5,10 @@
 //   bunx create-duck my-app            interactive
 //   npx create-duck my-app --web preact --with auth,rbac,sse --yes
 //   create-duck --check                validate the template (for its CI)
+//   create-duck --install-skill        install the duck-stack agent skill for Claude Code
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, lstatSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { homedir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { FEATURES, TENANTS, WEBS, configure } from '../lib/features.mjs'
@@ -16,6 +18,7 @@ import { parseSchemaText, planApply } from '../lib/apply.mjs'
 import { applyWithRollback, inspect } from '../lib/generate.mjs'
 
 const TEMPLATE = join(dirname(fileURLToPath(import.meta.url)), '..', 'template')
+const SKILL = join(dirname(fileURLToPath(import.meta.url)), '..', 'skills', 'duck-stack')
 const tty = process.stdout.isTTY
 const c = (code) => (s) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s)
 const bold = c(1), dim = c(2), green = c(32), yellow = c(33), red = c(31), cyan = c(36)
@@ -31,13 +34,15 @@ const USAGE = `${bold('create-duck')} <name> [options]
   --no-install           skip go mod tidy, code generation, bun install and git init
   --json                 machine-readable JSON output
   --check                validate the template's markers and exit
+  --install-skill        install the duck-stack skill in ~/.claude/skills so AI agents
+                         (Claude Code) use create-duck and ducktpl for new apps
 
 Modules:
 ${FEATURES.map((f) => `  ${f.id.padEnd(7)} ${f.label} — ${dim(f.hint)}${f.requires ? dim(` (needs ${f.requires.join(', ')})`) : ''}`).join('\n')}
 `
 
 function parseArgs(argv) {
-  const a = { with: null, web: null, rls: null, owner: null, yes: false, install: true, check: false, name: null, help: false, manifest: null, json: false }
+  const a = { with: null, web: null, rls: null, owner: null, yes: false, install: true, check: false, installSkill: false, name: null, help: false, manifest: null, json: false }
   for (let i = 0; i < argv.length; i++) {
     const x = argv[i]
     const val = () => argv[++i] ?? die(`${x} needs a value`)
@@ -56,6 +61,7 @@ function parseArgs(argv) {
     else if (x === '--yes' || x === '-y') a.yes = true
     else if (x === '--no-install') a.install = false
     else if (x === '--check') a.check = true
+    else if (x === '--install-skill') a.installSkill = true
     else if (x === '--help' || x === '-h') a.help = true
     else if (x.startsWith('-')) die(`unknown option ${x}`)
     else if (!a.name) a.name = x
@@ -114,6 +120,7 @@ async function main() {
     const n = check(TEMPLATE)
     return console.log(green('✓ ') + `${n} template files follow the marker rules`)
   }
+  if (args.installSkill) return installSkill(args.json)
 
   // Detect and parse manifest (duck.yaml / duck.json)
   const candidateManifest = args.manifest || (args.name && (args.name.endsWith('.yaml') || args.name.endsWith('.yml') || args.name.endsWith('.json')) && existsSync(args.name) ? args.name : null)
@@ -121,7 +128,11 @@ async function main() {
   let manifestObj = null
   if (candidateManifest && existsSync(candidateManifest)) {
     manifestRaw = readFileSync(candidateManifest, 'utf8')
-    manifestObj = parseSchemaText(manifestRaw)
+    try {
+      manifestObj = parseSchemaText(manifestRaw)
+    } catch (e) {
+      die(`${candidateManifest}: ${e.message}`)
+    }
     if (manifestObj.app) {
       if (manifestObj.app.name) args.name = manifestObj.app.name
       if (manifestObj.app.web) args.web = manifestObj.app.web
@@ -185,7 +196,7 @@ async function main() {
     }
   }
 
-  if (args.install) postInstall(dest, cfg)
+  if (args.install) postInstall(dest, cfg, args.json)
 
   if (args.json) {
     console.log(JSON.stringify({
@@ -196,6 +207,13 @@ async function main() {
       rls: args.rls,
       modules: on,
       resources: appliedResources,
+      next: [
+        `cd ${args.name}`,
+        'npx ducktpl info --json',
+        'npx ducktpl add <resource> <field:type[!]>... --json',
+        'npx ducktpl apply schema.yaml --json',
+        'make test',
+      ],
     }, null, 2))
     return
   }
@@ -208,12 +226,32 @@ ${green('Done.')} Next:
   make build      ${dim('# one binary with the UI inside: dist/bin/' + n.lower)}
   make help       ${dim('# everything else')}
 
-${dim('Add an endpoint: migration + query → handler with its openapi:operation → route → make generate. See CLAUDE.md.')}
+  ${bold('npx ducktpl add')} tasks title:string! done:bool   ${dim('# a resource through every layer')}
+  ${bold('npx ducktpl --help')}                             ${dim('# columns, DTOs, actions, events, modules')}
+
+${dim('AI agents: create-duck --install-skill teaches Claude Code to use these. See CLAUDE.md.')}
 `)
 }
 
-function postInstall(dest, cfg) {
-  const step = (label, ok) => console.log((ok ? green('✓ ') : yellow('! ')) + label + (ok ? '' : yellow(' (failed; run it yourself)')))
+// Copies the duck-stack skill to ~/.claude/skills, replacing an older copy.
+function installSkill(json) {
+  const dest = join(homedir(), '.claude', 'skills', 'duck-stack')
+  let existed = false
+  try {
+    lstatSync(dest)
+    existed = true
+    rmSync(dest, { recursive: true, force: true })
+  } catch {}
+  mkdirSync(dirname(dest), { recursive: true })
+  cpSync(SKILL, dest, { recursive: true })
+  if (json) return console.log(JSON.stringify({ status: 'ok', action: 'install-skill', dest, replaced: existed }, null, 2))
+  console.log(green('✓ ') + `duck-stack skill ${existed ? 'updated' : 'installed'} in ${dest}`)
+  console.log(dim('  Claude Code now starts new apps with create-duck and extends them with ducktpl.'))
+}
+
+function postInstall(dest, cfg, json) {
+  // --json keeps stdout a single JSON document
+  const step = (label, ok) => json || console.log((ok ? green('✓ ') : yellow('! ')) + label + (ok ? '' : yellow(' (failed; run it yourself)')))
   const gw = join(dest, 'gateway')
   if (has('go')) {
     step('go mod tidy', run('go', ['mod', 'tidy'], gw, { quiet: true }))

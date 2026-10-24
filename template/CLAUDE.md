@@ -43,12 +43,26 @@ web/                          the UI (Vite + TypeScript), built into the gateway
 - `make test` — vet, tests, spec up to date, UI typecheck. `make test-postgres` runs the suites on PostgreSQL.
 - `make build` — `dist/bin/duckapp`, UI embedded.
 
-## Adding an endpoint (the loop)
+## Adding resources: always ducktpl first
 
-`npx ducktpl add tasks title:string! notes:text done:bool priority:int`
-does all of the steps below for a CRUD resource (fields: string, text, int,
-float, bool; `!` = required) and leaves plain code to edit. It inserts lines
-at the `ducktpl:<place>` comments: keep them. By hand:
+**Never hand-write a CRUD resource, a column change or a DTO change.** Use the
+generator; it writes every layer below, runs `make generate` and rolls back if
+the build breaks:
+
+- `npx ducktpl info --json` — modules, tables and types of this project
+- `npx ducktpl add tasks title:string! notes:text done:bool priority:int --json`
+- `npx ducktpl apply schema.yaml --json` — several related resources at once
+- `npx ducktpl moddb addColumn|removeColumn|renameColumn|changeType … --json`
+- `npx ducktpl dto|addAction|on|remove|module … --json` — `npx ducktpl --help`
+- `npx ducktpl check --json` — after hand edits
+
+It inserts lines at the `ducktpl:<place>` comments: keep them. Hand-write only
+what the generator does not cover (business logic, custom UI), inside the code
+it generated.
+
+## Adding an endpoint by hand (reference)
+
+What ducktpl does, for code it cannot generate:
 
 1. **Schema**: a migration in *both* `migrations/sqlite` and `migrations/postgres`
    (same number). sqlc reads types from the PostgreSQL one.

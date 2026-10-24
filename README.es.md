@@ -12,6 +12,19 @@ npx create-duck mi-app --web preact --rls multitenant --with auth,rbac,audit,sse
 
 Después `cd mi-app && make dev`.
 
+## Con un agente de IA (Claude Code)
+
+```sh
+npx create-duck --install-skill         # una vez: copia el skill duck-stack a ~/.claude/skills
+```
+
+Después pide la app con tus palabras ("crea una app de citas"). El skill hace
+que el agente escriba un manifest `duck.yaml` y ejecute `create-duck --manifest`,
+y que después la amplíe con `ducktpl … --json` en lugar de escribir cada capa a
+mano: el CRUD, las migraciones, el contrato y las páginas salen del generador, y
+el agente gasta sus tokens en lo propio de tu app. Vuelve a ejecutarlo para
+actualizar el skill.
+
 ## Modificar base de datos y agregar recursos
 
 Dentro de un proyecto generado:
