@@ -5,14 +5,17 @@
 //   npx ducktpl addScope projects name:string!
 //   npx ducktpl addToScope projects tasks title:string!
 import { spawnSync } from 'node:child_process'
+import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { TYPES, apply, findProject, inspect, parseFields, plan, resourceNames } from '../lib/generate.mjs'
+import { TYPES, TYPE_ALIASES, applyWithRollback, findProject, inspect, parseFields, plan, resourceNames } from '../lib/generate.mjs'
 import { planModdb } from '../lib/moddb.mjs'
 import { planDTO } from '../lib/dto.mjs'
 
 const tty = process.stdout.isTTY
 const c = (code) => (s) => (tty ? `\x1b[${code}m${s}\x1b[0m` : s)
 const bold = c(1), dim = c(2), green = c(32), yellow = c(33), red = c(31)
+
+const isJsonGlobal = process.argv.includes('--json')
 
 const USAGE = `${bold('ducktpl')} — generators for create-duck projects
 
@@ -25,6 +28,7 @@ const USAGE = `${bold('ducktpl')} — generators for create-duck projects
   ducktpl moddb changeType <table> <column:type[!]> --force
   ducktpl moddb renameColumn <table> <old_name> <new_name>
   ducktpl dto <resource> [fields...] [options]
+  ducktpl info [options]
 
 Adds a resource through every layer: migrations (SQLite and PostgreSQL),
 queries, handlers with their OpenAPI blocks, routes, permissions (auth,
@@ -43,6 +47,8 @@ safely (moddb); or molds response DTOs to avoid data leaks and minimize payloads
   --remove field  remove field from DTO
   --dto f1,f2     (for add) specify which fields to expose in the DTO
   --omit-dto f1   (for add) specify which fields to exclude from the DTO
+  --json          machine-readable JSON output (ideal for AI agents)
+  --no-rollback   disable automatic rollback if build/generation fails
   --dry-run       list what would change, write nothing
   --no-generate   skip make generate
 
@@ -52,6 +58,7 @@ Commands:
   addToScope      resource that belongs to a scope (nested list, scope picker)
   moddb           database schema migrations (addColumn, removeColumn, changeType, renameColumn)
   dto             mold response DTOs, prevent leaking internal fields, reduce output size
+  info            inspect project features, available types and existing tables
 
 Examples:
   ducktpl add tasks title:string! notes:text done:bool priority:int
@@ -64,38 +71,137 @@ Examples:
   ducktpl dto notes                           # inspect current DTO fields vs table columns
   ducktpl dto notes title body                # only expose title and body in DTO (hides pinned)
   ducktpl dto notes --omit pinned             # omit pinned from DTO response
+  ducktpl info --json                         # inspect project features for agents
 `
 
-function die(msg) {
-  console.error(red('✗ ') + msg)
+function die(msg, code = 'ERR_DUCKTPL', isJson = isJsonGlobal) {
+  if (isJson) {
+    console.error(JSON.stringify({ status: 'error', error: msg, code }))
+  } else {
+    console.error(red('✗ ') + msg)
+  }
   process.exit(1)
 }
 
 function main() {
   const argv = process.argv.slice(2)
-  if (!argv.length || argv.includes('-h') || argv.includes('--help')) return console.log(USAGE)
-  const opts = { dry: false, generate: true, force: false, singular: '', only: '', omit: '', exclude: '', add: '', remove: '', dto: '', dtoOmit: '' }
+  if (!argv.length || argv.includes('-h') || argv.includes('--help')) {
+    if (isJsonGlobal) {
+      console.log(JSON.stringify({
+        status: 'ok',
+        usage: USAGE,
+        commands: ['add', 'addScope', 'addToScope', 'moddb', 'dto', 'info'],
+        types: Object.keys(TYPES),
+      }, null, 2))
+      return
+    }
+    return console.log(USAGE)
+  }
+
+  const opts = {
+    dry: false,
+    generate: true,
+    force: false,
+    singular: '',
+    only: undefined,
+    omit: undefined,
+    exclude: undefined,
+    add: undefined,
+    remove: undefined,
+    dto: '',
+    dtoOmit: '',
+    json: isJsonGlobal,
+    noRollback: false,
+  }
+
   const rest = []
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]
     if (a === '--dry-run') opts.dry = true
     else if (a === '--no-generate') opts.generate = false
     else if (a === '--force') opts.force = true
-    else if (a === '--singular') opts.singular = argv[++i] ?? die('--singular needs a value')
-    else if (a === '--only') opts.only = argv[++i] ?? die('--only needs a value')
-    else if (a === '--omit') opts.omit = argv[++i] ?? die('--omit needs a value')
-    else if (a === '--exclude') opts.exclude = argv[++i] ?? die('--exclude needs a value')
-    else if (a === '--add') opts.add = argv[++i] ?? die('--add needs a value')
-    else if (a === '--remove') opts.remove = argv[++i] ?? die('--remove needs a value')
-    else if (a === '--dto') opts.dto = argv[++i] ?? die('--dto needs a value')
-    else if (a === '--omit-dto') opts.dtoOmit = argv[++i] ?? die('--omit-dto needs a value')
+    else if (a === '--json') opts.json = true
+    else if (a === '--no-rollback') opts.noRollback = true
+    else if (a === '--singular') opts.singular = argv[++i] ?? die('--singular needs a value', 'ERR_ARGS', opts.json)
+    else if (a === '--only') opts.only = argv[++i] ?? die('--only needs a value', 'ERR_ARGS', opts.json)
+    else if (a === '--omit') opts.omit = argv[++i] ?? die('--omit needs a value', 'ERR_ARGS', opts.json)
+    else if (a === '--exclude') opts.exclude = argv[++i] ?? die('--exclude needs a value', 'ERR_ARGS', opts.json)
+    else if (a === '--add') opts.add = argv[++i] ?? die('--add needs a value', 'ERR_ARGS', opts.json)
+    else if (a === '--remove') opts.remove = argv[++i] ?? die('--remove needs a value', 'ERR_ARGS', opts.json)
+    else if (a === '--dto') opts.dto = argv[++i] ?? die('--dto needs a value', 'ERR_ARGS', opts.json)
+    else if (a === '--omit-dto') opts.dtoOmit = argv[++i] ?? die('--omit-dto needs a value', 'ERR_ARGS', opts.json)
     else if (a === '--addRoute' || a === '--add-route') rest.push('add')
     else if (a === '--addScope' || a === '--add-scope') rest.push('addScope')
     else if (a === '--addToScope' || a === '--add-to-scope') rest.push('addToScope')
-    else if (a.startsWith('-')) die(`unknown option ${a}\n\n${USAGE}`)
+    else if (a.startsWith('-')) die(`unknown option ${a}\n\n${USAGE}`, 'ERR_UNKNOWN_OPT', opts.json)
     else rest.push(a)
   }
+
   let cmd = rest[0]
+
+  // Introspection command: ducktpl info / ducktpl inspect
+  if (cmd === 'info' || cmd === 'inspect') {
+    let p
+    try {
+      p = inspect(findProject(process.cwd()))
+    } catch (e) {
+      die(e.message, 'ERR_NOT_PROJECT', opts.json)
+    }
+
+    const sqliteDir = join(p.root, 'gateway/internal/store/migrations/sqlite')
+    const tables = []
+    if (existsSync(sqliteDir)) {
+      for (const f of readdirSync(sqliteDir)) {
+        if (!f.endsWith('.sql')) continue
+        const text = readFileSync(join(sqliteDir, f), 'utf8')
+        const matches = text.matchAll(/CREATE\s+TABLE\s+([a-z0-9_]+)/gi)
+        for (const m of matches) tables.push(m[1])
+      }
+    }
+
+    const payload = {
+      status: 'ok',
+      action: 'info',
+      project: {
+        root: p.root,
+        module: p.module,
+        features: {
+          auth: p.auth,
+          rbac: p.rbac,
+          live: p.live,
+          multitenant: p.multitenant,
+        },
+      },
+      types: Object.keys(TYPES),
+      typeAliases: TYPE_ALIASES,
+      tables: [...new Set(tables)],
+      anchors: [
+        'ducktpl:routes',
+        'ducktpl:perms',
+        'ducktpl:catalog',
+        'ducktpl:user-perms',
+        'ducktpl:objects',
+        'ducktpl:imports',
+        'ducktpl:nav',
+        'ducktpl:pages',
+        'ducktpl:live',
+        'ducktpl:scope-links',
+      ],
+    }
+
+    if (opts.json) {
+      console.log(JSON.stringify(payload, null, 2))
+    } else {
+      console.log(bold('duck-template project info:'))
+      console.log(`  Root: ${p.root}`)
+      console.log(`  Module: ${p.module}`)
+      console.log(`  Features: ${Object.entries(payload.project.features).filter(([, v]) => v).map(([k]) => k).join(', ') || 'none'}`)
+      console.log(`  Existing tables: ${payload.tables.join(', ') || 'none'}`)
+      console.log(`  Available types: ${payload.types.join(', ')}`)
+    }
+    return
+  }
+
   let subcmd = null
   let subargs = []
   if (cmd?.startsWith('moddb:')) {
@@ -105,25 +211,25 @@ function main() {
   } else if (cmd === 'moddb') {
     subcmd = rest[1]
     subargs = rest.slice(2)
-    if (!subcmd) die(`which moddb command? e.g. ducktpl moddb addColumn tasks notes:text\n\n${USAGE}`)
+    if (!subcmd) die(`which moddb command? e.g. ducktpl moddb addColumn tasks notes:text\n\n${USAGE}`, 'ERR_ARGS', opts.json)
   }
 
   let resource, scope, specs
   if (cmd === 'add' || cmd === 'addScope') {
     resource = rest[1]
     specs = rest.slice(2)
-    if (!resource) die(`which resource? e.g. ducktpl ${cmd} ${cmd === 'addScope' ? 'projects' : 'tasks'} title:string!`)
+    if (!resource) die(`which resource? e.g. ducktpl ${cmd} ${cmd === 'addScope' ? 'projects' : 'tasks'} title:string!`, 'ERR_ARGS', opts.json)
   } else if (cmd === 'addToScope') {
     scope = rest[1]
     resource = rest[2]
     specs = rest.slice(3)
-    if (!scope || !resource) die('which scope and resource? e.g. ducktpl addToScope projects tasks title:string!')
+    if (!scope || !resource) die('which scope and resource? e.g. ducktpl addToScope projects tasks title:string!', 'ERR_ARGS', opts.json)
   } else if (cmd === 'dto') {
     resource = rest[1]
     specs = rest.slice(2)
-    if (!resource) die('which resource? e.g. ducktpl dto notes [fields...]')
+    if (!resource) die('which resource? e.g. ducktpl dto notes [fields...]', 'ERR_ARGS', opts.json)
   } else if (cmd !== 'moddb') {
-    die(`unknown command ${cmd ?? ''}\n\n${USAGE}`)
+    die(`unknown command ${cmd ?? ''}\n\n${USAGE}`, 'ERR_UNKNOWN_CMD', opts.json)
   }
 
   let p, n, fields, planned
@@ -139,10 +245,22 @@ function main() {
       planned = plan(p, n, fields, { cmd, scope, ...opts })
     }
   } catch (e) {
-    die(e.message)
+    die(e.message, 'ERR_PLAN_FAILED', opts.json)
   }
 
   if (cmd === 'dto' && planned.inspectOnly) {
+    if (opts.json) {
+      console.log(JSON.stringify({
+        status: 'ok',
+        action: 'dto_inspect',
+        table: planned.table,
+        schemaName: planned.schemaName,
+        handlerPath: planned.handlerPath,
+        exposed: planned.currentDTOCols,
+        hidden: planned.hiddenCols,
+      }, null, 2))
+      return
+    }
     console.log(`${bold('DTO for')} ${planned.schemaName} ${dim(`(table ${planned.table}, handler ${planned.handlerPath})`)}`)
     console.log(`\n  ${bold('Exposed fields in DTO:')}`)
     for (const c of planned.currentDTOCols) console.log(`    ${green('✓')} ${c}`)
@@ -158,28 +276,56 @@ function main() {
 
   const { files, notes = [] } = planned
 
-  if (cmd === 'moddb') {
-    console.log(`${bold('Modifying')} database ${dim(`(table ${planned.table}, moddb ${planned.action})`)}`)
-  } else if (cmd === 'dto') {
-    console.log(`${bold('Molding DTO for')} ${planned.schemaName} ${dim(`(table ${planned.table}, handler ${planned.handlerPath})`)}`)
-    console.log(`  Exposed in DTO: ${planned.exposed.join(', ')}`)
-    if (planned.hidden.length) console.log(dim(`  Hidden from API: ${planned.hidden.join(', ')}`))
-  } else {
-    const mods = ['auth', 'rbac', 'live', 'multitenant'].filter((m) => p[m])
-    const kind = cmd === 'addScope' ? 'scope ' : cmd === 'addToScope' ? `resource in ${scope}: ` : ''
-    console.log(`${bold('Adding')} ${kind}${n.label} ${dim(`(${n.url}, model ${n.Singular}; project modules: ${mods.join(', ') || 'none'})`)}`)
+  if (opts.dry) {
+    if (opts.json) {
+      console.log(JSON.stringify({
+        status: 'ok',
+        dryRun: true,
+        action: cmd,
+        table: planned.table || n?.table,
+        files: files.map((f) => ({ path: f.path, action: f.created ? 'create' : 'update' })),
+        notes,
+        frontendPage: planned.frontendPage || undefined,
+      }, null, 2))
+      return
+    }
   }
 
-  for (const f of files) console.log(`  ${f.created ? green('create') : yellow('update')} ${f.path}`)
-  for (const note of notes) console.log(`  ${yellow('! ' + note)}`)
-  if (opts.dry) return console.log(dim('\n--dry-run: nothing written'))
-  apply(p.root, files)
+  if (!opts.json) {
+    if (cmd === 'moddb') {
+      console.log(`${bold('Modifying')} database ${dim(`(table ${planned.table}, moddb ${planned.action})`)}`)
+    } else if (cmd === 'dto') {
+      console.log(`${bold('Molding DTO for')} ${planned.schemaName} ${dim(`(table ${planned.table}, handler ${planned.handlerPath})`)}`)
+      console.log(`  Exposed in DTO: ${planned.exposed.join(', ')}`)
+      if (planned.hidden.length) console.log(dim(`  Hidden from API: ${planned.hidden.join(', ')}`))
+    } else {
+      const mods = ['auth', 'rbac', 'live', 'multitenant'].filter((m) => p[m])
+      const kind = cmd === 'addScope' ? 'scope ' : cmd === 'addToScope' ? `resource in ${scope}: ` : ''
+      console.log(`${bold('Adding')} ${kind}${n.label} ${dim(`(${n.url}, model ${n.Singular}; project modules: ${mods.join(', ') || 'none'})`)}`)
+    }
 
+    for (const f of files) console.log(`  ${f.created ? green('create') : yellow('update')} ${f.path}`)
+    for (const note of notes) console.log(`  ${yellow('! ' + note)}`)
+  }
+
+  if (opts.dry) {
+    return console.log(dim('\n--dry-run: nothing written'))
+  }
+
+  const res = applyWithRollback(p.root, files)
+
+  let generatedOk = true
   if (opts.generate) {
-    const run = (label, cmd, args, cwd) => {
-      const r = spawnSync(cmd, args, { cwd, encoding: 'utf8' })
-      if (r.status === 0) return console.log(green('✓ ') + label), true
-      console.log(yellow('! ') + label + yellow(' failed:') + '\n' + (r.stderr || r.stdout).trim().split('\n').slice(-15).join('\n'))
+    const run = (label, runCmd, args, cwd) => {
+      const r = spawnSync(runCmd, args, { cwd, encoding: 'utf8' })
+      if (r.status === 0) {
+        if (!opts.json) console.log(green('✓ ') + label)
+        return true
+      }
+      const err = (r.stderr || r.stdout || '').trim().split('\n').slice(-15).join('\n')
+      if (!opts.json) {
+        console.log(yellow('! ') + label + yellow(' failed:') + '\n' + err)
+      }
       return false
     }
     const gw = join(p.root, 'gateway')
@@ -188,7 +334,42 @@ function main() {
       run('gofmt', 'gofmt', ['-w', 'internal'], gw) &&
       run('OpenAPI spec', 'go', ['run', './cmd/openapi-gen'], gw) &&
       run('UI types', 'bun', ['run', 'gen-api'], join(p.root, 'web'))
-    if (!ok) process.exitCode = 1
+
+    if (!ok) {
+      generatedOk = false
+      if (!opts.noRollback) {
+        res.rollback()
+        if (opts.json) {
+          console.error(JSON.stringify({
+            status: 'error',
+            error: 'Post-generation build failed (sqlc, gofmt, openapi-gen, or gen-api). Workspace was automatically rolled back.',
+            rolledBack: true,
+            filesRestored: res.updatedCount,
+            filesRemoved: res.createdCount,
+          }))
+        } else {
+          console.error(red('✗ Generation failed. Workspace was rolled back to maintain a clean state.'))
+          console.error(dim(`  Restored ${res.updatedCount} files, removed ${res.createdCount} new files.`))
+        }
+        process.exit(1)
+      }
+      process.exitCode = 1
+    }
+  }
+
+  if (opts.json) {
+    console.log(JSON.stringify({
+      status: 'ok',
+      action: cmd,
+      subcommand: subcmd || undefined,
+      resource: resource || undefined,
+      table: planned.table || n?.table,
+      files: files.map((f) => ({ path: f.path, action: f.created ? 'create' : 'update' })),
+      notes,
+      frontendPage: planned.frontendPage || undefined,
+      generated: generatedOk,
+    }, null, 2))
+    return
   }
 
   if (cmd === 'moddb') {

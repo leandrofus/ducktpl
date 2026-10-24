@@ -31,6 +31,10 @@ npx ducktpl moddb removeColumn tasks status
 npx ducktpl dto tasks                       # inspeccionar DTO actual vs columnas de tabla
 npx ducktpl dto tasks title done priority   # exponer solo campos específicos
 npx ducktpl dto tasks --omit internal_notes # ocultar campos internos o sensibles
+
+# Introspección y salida para Agentes de IA
+npx ducktpl info --json                     # detectar módulos activos, tablas y tipos
+npx ducktpl add tasks title:string! --json  # JSON estructurado con rollback automático si falla build
 ```
 
 Pasa por todas las capas (migraciones de ambos motores, queries, handlers con

@@ -10,7 +10,8 @@
   "files": [
     "bin",
     "lib",
-    "template"
+    "template",
+    "skills"
   ],
   "engines": {
     "node": ">=18"
