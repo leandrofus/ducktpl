@@ -26,6 +26,11 @@ npx ducktpl moddb addColumn tasks status:string!
 npx ducktpl moddb renameColumn tasks title heading
 npx ducktpl moddb changeType tasks priority:int! --force
 npx ducktpl moddb removeColumn tasks status
+
+# Moldear DTOs: evitar fugas de datos y reducir carga innecesaria
+npx ducktpl dto tasks                       # inspeccionar DTO actual vs columnas de tabla
+npx ducktpl dto tasks title done priority   # exponer solo campos específicos
+npx ducktpl dto tasks --omit internal_notes # ocultar campos internos o sensibles
 ```
 
 Pasa por todas las capas (migraciones de ambos motores, queries, handlers con

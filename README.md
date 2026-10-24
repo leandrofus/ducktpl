@@ -28,6 +28,11 @@ npx ducktpl moddb addColumn tasks status:string!
 npx ducktpl moddb renameColumn tasks title heading
 npx ducktpl moddb changeType tasks priority:int! --force
 npx ducktpl moddb removeColumn tasks status
+
+# Mold DTOs: prevent data leaks & reduce unnecessary payload
+npx ducktpl dto tasks                       # inspect current DTO vs table columns
+npx ducktpl dto tasks title done priority   # expose only specific fields
+npx ducktpl dto tasks --omit internal_notes # hide internal / sensitive fields
 ```
 
 It goes through every layer — migrations for both engines, sqlc queries,
